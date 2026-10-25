@@ -1,0 +1,30 @@
+name: Zero-Cost Keep-Alive & Retention
+
+on:
+  schedule:
+    - cron: '0 4 * * 0' # Every Sunday at 04:00 AM UTC
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ping Supabase & Commit Heartbeat
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # 1. Ping Supabase REST to prevent pause
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            curl -s -H "apikey: $SUPABASE_ANON_KEY" "$SUPABASE_URL/rest/v1/feature_flags?select=key&limit=1" || true
+          fi
+          
+          # 2. Update heartbeat file to keep scheduled actions active
+          date -u > .heartbeat
+          git config user.name "SEOGPS Bot"
+          git config user.email "bot@seogps.local"
+          git add .heartbeat
+          git commit -m "chore(keepalive): weekly automated heartbeat [skip ci]" || true
+          git push || true
