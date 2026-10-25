@@ -1,8 +1,10 @@
-# Environment variables
+# Environment variables & Secret Keys
 .env
 .env.local
 .env.*.local
 *.env
+*.csv
+api-keys*
 
 # Dependencies
 node_modules/
