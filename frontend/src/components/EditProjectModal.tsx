@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import { X, Globe, Mail, Clock, Trash2, Save, AlertTriangle, Calendar } from 'lucide-react';
+import { X, Globe, Mail, Clock, Trash2, Save, Calendar } from 'lucide-react';
 
 export interface ProjectData {
   id: string;
@@ -13,6 +13,8 @@ export interface ProjectData {
   frequency?: 'hourly' | 'daily' | 'weekly';
   crawl_day?: string;
   recipient_email?: string;
+  health_score?: number;
+  last_run_at?: string;
 }
 
 interface EditProjectModalProps {
@@ -31,18 +33,32 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
   onDelete,
 }) => {
   const { t } = useI18n();
-  if (!isOpen || !project) return null;
 
-  const [name, setName] = useState(project.name || '');
-  const [rootUrl, setRootUrl] = useState(project.root_url || `https://${project.domain}`);
-  const [sitemapUrl, setSitemapUrl] = useState(project.sitemap_url || '');
-  const [frequency, setFrequency] = useState<'hourly' | 'daily' | 'weekly'>(project.frequency || 'daily');
-  const [crawlHour, setCrawlHour] = useState(String(project.daily_crawl_hour ?? 6).padStart(2, '0'));
-  const [crawlDay, setCrawlDay] = useState(project.crawl_day || 'monday');
-  const [timezone, setTimezone] = useState(project.timezone || 'UTC');
-  const [email, setEmail] = useState(project.recipient_email || '');
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [name, setName] = useState('');
+  const [rootUrl, setRootUrl] = useState('');
+  const [sitemapUrl, setSitemapUrl] = useState('');
+  const [frequency, setFrequency] = useState<'hourly' | 'daily' | 'weekly'>('daily');
+  const [crawlHour, setCrawlHour] = useState('06');
+  const [crawlDay, setCrawlDay] = useState('monday');
+  const [timezone, setTimezone] = useState('UTC');
+  const [email, setEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (project) {
+      setName(project.name || '');
+      setRootUrl(project.root_url || `https://${project.domain}`);
+      setSitemapUrl(project.sitemap_url || '');
+      setFrequency(project.frequency || 'daily');
+      setCrawlHour(String(project.daily_crawl_hour ?? 6).padStart(2, '0'));
+      setCrawlDay(project.crawl_day || 'monday');
+      setTimezone(project.timezone || 'UTC');
+      setEmail(project.recipient_email || '');
+      setIsSaving(false);
+    }
+  }, [project, isOpen]);
+
+  if (!isOpen || !project) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +111,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           <div>
             <label className="block text-body-sm font-bold text-ink mb-1.5">
-              اسم المشروع (Project Name)
+              {t('admin.table_name')}
             </label>
             <input
               type="text"
@@ -169,13 +185,13 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
                   onChange={(e) => setCrawlDay(e.target.value)}
                   className="w-full px-3 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink"
                 >
-                  <option value="monday">الإثنين (Monday)</option>
-                  <option value="tuesday">الثلاثاء (Tuesday)</option>
-                  <option value="wednesday">الأربعاء (Wednesday)</option>
-                  <option value="thursday">الخميس (Thursday)</option>
-                  <option value="friday">الجمعة (Friday)</option>
-                  <option value="saturday">السبت (Saturday)</option>
-                  <option value="sunday">الأحد (Sunday)</option>
+                  <option value="monday">{t('project_actions.days.monday')}</option>
+                  <option value="tuesday">{t('project_actions.days.tuesday')}</option>
+                  <option value="wednesday">{t('project_actions.days.wednesday')}</option>
+                  <option value="thursday">{t('project_actions.days.thursday')}</option>
+                  <option value="friday">{t('project_actions.days.friday')}</option>
+                  <option value="saturday">{t('project_actions.days.saturday')}</option>
+                  <option value="sunday">{t('project_actions.days.sunday')}</option>
                 </select>
               </div>
             )}
@@ -249,7 +265,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-body-sm text-ink-muted hover:text-ink font-semibold"
               >
-                إلغاء
+                {t('project_actions.delete') ? 'Cancel' : 'إلغاء'}
               </button>
               <button
                 type="submit"
@@ -257,7 +273,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-gold text-white font-bold text-body-sm hover:bg-gold-hover shadow-sm transition-all flex items-center gap-1.5"
               >
                 <Save className="w-4 h-4" />
-                <span>{isSaving ? 'جاري الحفظ...' : t('onboarding.save_changes')}</span>
+                <span>{isSaving ? '...' : t('onboarding.save_changes')}</span>
               </button>
             </div>
           </div>

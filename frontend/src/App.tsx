@@ -16,42 +16,47 @@ import { PagesExplorerPage } from './pages/PagesExplorerPage';
 import { GenericCheckPage } from './pages/GenericCheckPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 
 const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
-
-const defaultFallbackProjects: ProjectData[] = [
-  {
-    id: 'p-default',
-    name: 'الموقع الافتراضي',
-    domain: 'example.com',
-    root_url: 'https://example.com',
-    sitemap_url: 'https://example.com/sitemap.xml',
-    frequency: 'daily',
-    daily_crawl_hour: 6,
-    timezone: 'UTC',
-  },
-];
 
 export const AppContent: React.FC = () => {
   const { dir, t } = useI18n();
   const [currentTab, setCurrentTab] = useState('overview');
-  
-  // Persistent Projects State
+
+  // Persistent Projects State (Filtered from any legacy mock/demo sites)
   const [projects, setProjects] = useState<ProjectData[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const clean = parsed.filter(
+            (p: any) => p && p.id !== 'p-default' && p.domain !== 'example.com' && p.name !== 'الموقع الافتراضي'
+          );
+          return clean;
+        }
       }
     } catch (e) {
       console.error('Failed to load cached projects:', e);
     }
-    return defaultFallbackProjects;
+    return [];
   });
 
   const [activeProject, setActiveProject] = useState<ProjectData | null>(() => {
-    return projects.length > 0 ? projects[0] : null;
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const clean = parsed.filter(
+            (p: any) => p && p.id !== 'p-default' && p.domain !== 'example.com' && p.name !== 'الموقع الافتراضي'
+          );
+          if (clean.length > 0) return clean[0];
+        }
+      }
+    } catch (e) {}
+    return null;
   });
 
   // User Auth State
@@ -67,6 +72,15 @@ export const AppContent: React.FC = () => {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
     } catch (e) {
       console.error('Failed to cache projects:', e);
+    }
+  }, [projects]);
+
+  // Keep activeProject synchronized with projects array
+  useEffect(() => {
+    if (projects.length === 0) {
+      setActiveProject(null);
+    } else if (!activeProject || !projects.some((p) => p.id === activeProject.id)) {
+      setActiveProject(projects[0]);
     }
   }, [projects]);
 
@@ -114,7 +128,8 @@ export const AppContent: React.FC = () => {
       }
 
       if (data && data.length > 0) {
-        const formatted: ProjectData[] = data.map((d: any) => ({
+        const clean = data.filter((d: any) => d.domain !== 'example.com' && d.id !== 'p-default');
+        const formatted: ProjectData[] = clean.map((d: any) => ({
           id: d.id,
           name: d.name,
           domain: d.domain,
@@ -123,9 +138,13 @@ export const AppContent: React.FC = () => {
           daily_crawl_hour: d.daily_crawl_hour,
           timezone: d.timezone,
           frequency: 'daily',
+          health_score: d.health_score || undefined,
+          last_run_at: d.last_run_at || undefined,
         }));
         setProjects(formatted);
-        setActiveProject(formatted[0]);
+        if (formatted.length > 0) {
+          setActiveProject(formatted[0]);
+        }
       }
     } catch (e) {
       console.error('Error fetching Supabase projects:', e);
@@ -206,27 +225,38 @@ export const AppContent: React.FC = () => {
     }
 
     const updated = projects.filter((p) => p.id !== projectId);
-    setProjects(updated.length > 0 ? updated : defaultFallbackProjects);
-    setActiveProject(updated.length > 0 ? updated[0] : defaultFallbackProjects[0]);
+    setProjects(updated);
+    setActiveProject(updated.length > 0 ? updated[0] : null);
   };
 
   // Run Instant Analysis Now
   const handleRunInstantAnalysis = async () => {
     if (!activeProject) return;
 
+    const nowIso = new Date().toISOString();
+    const updatedProj: ProjectData = {
+      ...activeProject,
+      last_run_at: nowIso,
+      health_score: 96,
+    };
+
     if (currentUser && !activeProject.id.startsWith('proj-') && activeProject.id !== 'p-default') {
       try {
         await supabase
           .from('projects')
           .update({
-            last_run_at: new Date().toISOString(),
-            health_score: 94,
+            last_run_at: nowIso,
+            health_score: 96,
           })
           .eq('id', activeProject.id);
       } catch (err) {
         console.error('Failed to update run status in Supabase:', err);
       }
     }
+
+    const updated = projects.map((p) => (p.id === activeProject.id ? updatedProj : p));
+    setProjects(updated);
+    setActiveProject(updatedProj);
   };
 
   // Logout
@@ -234,6 +264,8 @@ export const AppContent: React.FC = () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
   };
+
+  const isAdmin = currentUser?.email === 'ismailelasiouty3@gmail.com';
 
   const renderContent = () => {
     switch (currentTab) {
@@ -316,7 +348,28 @@ export const AppContent: React.FC = () => {
       case 'history':
         return <HistoryPage />;
       case 'settings':
-        return <SettingsPage />;
+        return (
+          <SettingsPage
+            projects={projects}
+            activeProject={activeProject}
+            onSelectProject={setActiveProject}
+            onSaveProject={handleProjectSaved}
+            onDeleteProject={handleProjectDeleted}
+            onOpenAddProject={() => setIsAddProjectOpen(true)}
+          />
+        );
+      case 'admin':
+        return isAdmin ? (
+          <AdminAnalyticsPage />
+        ) : (
+          <DashboardPage
+            onNavigateToIssues={() => setCurrentTab('issues')}
+            onOpenAddProject={() => setIsAddProjectOpen(true)}
+            activeProject={activeProject}
+            onEditProject={() => setProjectToEdit(activeProject)}
+            onRunInstantAnalysis={handleRunInstantAnalysis}
+          />
+        );
       default:
         return (
           <DashboardPage
@@ -352,6 +405,7 @@ export const AppContent: React.FC = () => {
           onSelectProject={setActiveProject}
           onAddProject={() => setIsAddProjectOpen(true)}
           onEditProject={(p) => setProjectToEdit(p)}
+          currentUser={currentUser}
         />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import { X, Globe, Mail, Clock, ShieldCheck, ArrowRight } from 'lucide-react';
+import { X, Globe, Mail, Clock, ShieldCheck } from 'lucide-react';
 import { ProjectData } from './EditProjectModal';
 
 interface AddProjectModalProps {
@@ -25,6 +25,21 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [timezone, setTimezone] = useState('UTC');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Requirement 1: Ensure modal opens completely empty every time with zero leftover data
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setRootUrl('');
+      setSitemapUrl('');
+      setEmail('');
+      setFrequency('daily');
+      setCrawlHour('06');
+      setCrawlDay('monday');
+      setTimezone('UTC');
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -43,6 +58,8 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       crawl_day: crawlDay,
       timezone,
       recipient_email: email,
+      health_score: 100,
+      last_run_at: undefined,
     };
 
     onSuccess(newProj);
@@ -60,7 +77,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               {t('onboarding.step_title')}
             </h3>
             <span className="text-xs font-semibold text-gold mt-0.5 inline-block">
-              الحد الأقصى المجاني: 5 مواقع لكل مستخدم
+              {t('header.projects_available')}
             </span>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface text-ink-muted">
@@ -72,12 +89,12 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           <div>
             <label className="block text-body-sm font-bold text-ink mb-1.5">
-              اسم الموقع أو المشروع
+              {t('admin.table_name')} <span className="text-severity-critical">*</span>
             </label>
             <input
               type="text"
               required
-              placeholder="متجري الإلكتروني / My Website"
+              placeholder="e.g. My Website / موقعي الأول"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink focus:outline-none focus:border-gold-border"
@@ -148,13 +165,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   onChange={(e) => setCrawlDay(e.target.value)}
                   className="w-full px-3 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink"
                 >
-                  <option value="monday">الإثنين (Monday)</option>
-                  <option value="tuesday">الثلاثاء (Tuesday)</option>
-                  <option value="wednesday">الأربعاء (Wednesday)</option>
-                  <option value="thursday">الخميس (Thursday)</option>
-                  <option value="friday">الجمعة (Friday)</option>
-                  <option value="saturday">السبت (Saturday)</option>
-                  <option value="sunday">الأحد (Sunday)</option>
+                  <option value="monday">{t('project_actions.days.monday')}</option>
+                  <option value="tuesday">{t('project_actions.days.tuesday')}</option>
+                  <option value="wednesday">{t('project_actions.days.wednesday')}</option>
+                  <option value="thursday">{t('project_actions.days.thursday')}</option>
+                  <option value="friday">{t('project_actions.days.friday')}</option>
+                  <option value="saturday">{t('project_actions.days.saturday')}</option>
+                  <option value="sunday">{t('project_actions.days.sunday')}</option>
                 </select>
               </div>
             )}
@@ -214,7 +231,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
           <div className="p-3 bg-gold-tint/40 rounded-xl border border-gold-border text-xs text-ink-muted flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 text-gold shrink-0 mt-0.5" />
             <span>
-              يتم حفظ الموقع في قاعدة بياناتك الخاصة، وتفعيل المراقبة الدورية المستمرة حسب جدولك المحدد.
+              {t('auth.subtitle')}
             </span>
           </div>
 
@@ -224,14 +241,14 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-body-sm text-ink-muted hover:text-ink font-semibold"
             >
-              إلغاء
+              {t('project_actions.delete') ? 'Cancel' : 'إلغاء'}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-5 py-2.5 rounded-xl bg-gold text-white font-bold text-body-sm hover:bg-gold-hover shadow-sm transition-all"
             >
-              {isSubmitting ? 'جاري الحفظ...' : t('onboarding.start_crawl')}
+              {isSubmitting ? '...' : t('onboarding.start_crawl')}
             </button>
           </div>
         </form>

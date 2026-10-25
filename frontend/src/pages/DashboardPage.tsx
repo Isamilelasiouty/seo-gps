@@ -2,7 +2,19 @@ import React, { useState } from 'react';
 import { useI18n } from '../i18n';
 import { GaugeChart } from '../components/GaugeChart';
 import { StatCard } from '../components/StatCard';
-import { Play, Calendar, CheckCircle2, Clock, ShieldCheck, ArrowRight, Edit2, Sparkles, RefreshCw } from 'lucide-react';
+import {
+  Globe,
+  Clock,
+  ShieldCheck,
+  ArrowRight,
+  Edit2,
+  Sparkles,
+  RefreshCw,
+  PlusCircle,
+  CheckCircle2,
+  AlertTriangle,
+  PlayCircle
+} from 'lucide-react';
 import { ProjectData } from '../components/EditProjectModal';
 
 interface DashboardPageProps {
@@ -28,14 +40,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const handleRunNow = async () => {
     setIsRunningCrawl(true);
-    setCrawlProgressStep('الاتصال بالسيرفر وفحص الروابط...');
-    
+    setCrawlProgressStep(t('dashboard.step_connect'));
+
     setTimeout(() => {
-      setCrawlProgressStep('فحص أكواد الحالة والـ Canonicals...');
+      setCrawlProgressStep(t('dashboard.step_status'));
     }, 600);
 
     setTimeout(() => {
-      setCrawlProgressStep('تدقيق Schema.org والعناوين الدلالية...');
+      setCrawlProgressStep(t('dashboard.step_schema'));
     }, 1200);
 
     setTimeout(async () => {
@@ -46,64 +58,96 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   const getScheduleText = () => {
-    if (!activeProject) return 'غير مجدول';
-    if (activeProject.frequency === 'hourly') return 'كل ساعة (Hourly)';
+    if (!activeProject) return t('dashboard.not_scheduled');
+    if (activeProject.frequency === 'hourly') return t('dashboard.schedule_hourly');
     if (activeProject.frequency === 'weekly') {
-      return `أسبوعياً (كل ${activeProject.crawl_day || 'إثنين'} في ${activeProject.daily_crawl_hour ?? 6}:00)`;
+      const dayKey = activeProject.crawl_day ? `project_actions.days.${activeProject.crawl_day.toLowerCase()}` : 'project_actions.days.monday';
+      const dayLabel = t(dayKey) || activeProject.crawl_day || 'Monday';
+      return `${t('dashboard.schedule_weekly')} (${dayLabel} - ${activeProject.daily_crawl_hour ?? 6}:00)`;
     }
-    return `يومياً في تمام ${activeProject.daily_crawl_hour ?? 6}:00 (${activeProject.timezone || 'UTC'})`;
+    return `${t('dashboard.schedule_daily')} (${activeProject.daily_crawl_hour ?? 6}:00 ${activeProject.timezone || 'UTC'})`;
   };
+
+  // Case 1: Zero Projects Added - Empty State
+  if (!activeProject) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center p-8 bg-surface rounded-card border border-surface-hairline shadow-sm">
+        <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-5">
+          <Globe className="w-8 h-8" />
+        </div>
+        <h2 className="text-title-lg font-black text-ink mb-2">
+          {t('empty_states.no_projects_title')}
+        </h2>
+        <p className="text-body-md text-ink-muted leading-relaxed mb-6">
+          {t('empty_states.no_projects_desc')}
+        </p>
+        <button
+          onClick={onOpenAddProject}
+          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gold text-white font-extrabold text-body-md hover:bg-gold-hover shadow-md transition-all active:scale-95"
+        >
+          <PlusCircle className="w-5 h-5" />
+          <span>{t('empty_states.add_first_project')}</span>
+        </button>
+      </div>
+    );
+  }
+
+  const isAudited = Boolean(activeProject.last_run_at);
 
   return (
     <div className="space-y-6">
-      {/* 1. Header & Quick Actions */}
+      {/* 1. Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-title-xl font-extrabold text-ink tracking-tight">
-              {activeProject?.name || t('dashboard.title')}
+              {activeProject.name}
             </h1>
-            {activeProject && (
-              <button
-                onClick={onEditProject}
-                className="p-1 rounded-lg text-ink-muted hover:text-gold hover:bg-gold-tint/40 transition-colors"
-                title="تعديل بيانات الموقع والجدولة"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              onClick={onEditProject}
+              className="p-1 rounded-lg text-ink-muted hover:text-gold hover:bg-gold-tint/40 transition-colors"
+              title={t('project_actions.edit')}
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="flex items-center gap-3 mt-1.5 text-body-sm text-ink-muted flex-wrap">
             <span className="font-mono text-xs text-ink bg-surface px-2 py-0.5 rounded border border-surface-hairline">
-              {activeProject?.domain || 'example.com'}
+              {activeProject.domain}
             </span>
             <span>&bull;</span>
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4 text-gold" />
-              {t('dashboard.last_run')}: <strong className="text-ink">اليوم، 06:12 AM</strong>
+              {t('dashboard.last_run')}:{' '}
+              <strong className="text-ink">
+                {isAudited ? new Date(activeProject.last_run_at!).toLocaleDateString() : t('dashboard.status_not_audited')}
+              </strong>
             </span>
             <span>&bull;</span>
-            <span>الجدولة: <strong className="text-ink">{getScheduleText()}</strong></span>
+            <span>
+              {t('settings.schedule_title')}: <strong className="text-ink">{getScheduleText()}</strong>
+            </span>
           </div>
         </div>
 
         {/* Action Button: Run Now / Re-check */}
         <div className="flex items-center gap-3">
-          {/* Time range selector */}
-          <div className="bg-surface border border-surface-hairline p-1 rounded-xl flex items-center text-xs font-semibold">
-            {(['7d', '28d', '90d'] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setTimeRange(r)}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  timeRange === r ? 'bg-white shadow-sm text-ink font-bold' : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                {t(`dashboard.range_${r}`)}
-              </button>
-            ))}
-          </div>
+          {isAudited && (
+            <div className="bg-surface border border-surface-hairline p-1 rounded-xl flex items-center text-xs font-semibold">
+              {(['7d', '28d', '90d'] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setTimeRange(r)}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    timeRange === r ? 'bg-white shadow-sm text-ink font-bold' : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {t(`dashboard.range_${r}`)}
+                </button>
+              ))}
+            </div>
+          )}
 
           <button
             onClick={handleRunNow}
@@ -111,7 +155,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-white font-extrabold text-body-sm hover:bg-gold-hover shadow-md transition-all active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isRunningCrawl ? 'animate-spin' : ''}`} />
-            <span>{isRunningCrawl ? 'جاري الفحص المباشر...' : t('project_actions.run_now')}</span>
+            <span>{isRunningCrawl ? t('dashboard.running_crawl') : t('project_actions.run_now')}</span>
           </button>
         </div>
       </div>
@@ -125,185 +169,161 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               {crawlProgressStep}
             </span>
           </div>
-          <span className="text-xs text-ink-muted font-mono">Realtime Live Crawler</span>
+          <span className="text-xs text-ink-muted font-mono">SEO GPS Crawler</span>
         </div>
       )}
 
-      {/* 2. Getting Started Progress Pill (Ubersuggest style) */}
-      <div className="editorial-card p-4 bg-gold-tint/40 border-gold-border flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gold/10 border border-gold-border flex items-center justify-center text-gold font-bold">
-            3/4
+      {/* Case 2: Project Not Yet Audited - Clean Call to Action */}
+      {!isAudited ? (
+        <div className="editorial-card p-10 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-4">
+            <Sparkles className="w-8 h-8" />
           </div>
-          <div>
-            <h4 className="font-bold text-body-md text-ink">
-              {t('dashboard.getting_started')} (3 من 4 مكتملة)
-            </h4>
-            <p className="text-body-sm text-ink-muted">
-              إضافة الموقع &bull; تأكيد النطاق &bull; تفعيل إيميل التنبيه &bull; أول فحص حي
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={onOpenAddProject}
-          className="text-body-sm font-bold text-gold hover:text-gold-hover flex items-center gap-1 self-start md:self-auto"
-        >
-          <span>إضافة موقع جديد</span>
-          <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-        </button>
-      </div>
-
-      {/* 3. Indicators Grid: Health Gauge + Severity Stat Tiles */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Main Indicator: Semi-circle Gauge */}
-        <div className="lg:col-span-4 editorial-card p-6 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="eyebrow">{t('dashboard.main_indicator')}</span>
-            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#ECFDF3] text-[#067647]">
-              <ShieldCheck className="w-3.5 h-3.5" /> مستقر
-            </span>
-          </div>
-
-          <GaugeChart score={94} />
-
-          <div className="text-center pt-2 border-t border-surface-hairline text-xs text-ink-muted">
-            محسوبة من 0 حرجة &bull; 2 تحذير &bull; 1 ملاحظة
-          </div>
-        </div>
-
-        {/* Metric Cards (GSC Clickable Tiles) */}
-        <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard
-            label={t('dashboard.critical')}
-            value={0}
-            change={0}
-            severity="critical"
-            isSelected={selectedMetric === 'critical'}
-            onClick={() => setSelectedMetric('critical')}
-          />
-          <StatCard
-            label={t('dashboard.warning')}
-            value={2}
-            change={+1}
-            severity="warning"
-            isSelected={selectedMetric === 'warning'}
-            onClick={() => setSelectedMetric('warning')}
-          />
-          <StatCard
-            label={t('dashboard.notice')}
-            value={1}
-            change={-1}
-            severity="notice"
-            isSelected={selectedMetric === 'notice'}
-            onClick={() => setSelectedMetric('notice')}
-          />
-          <StatCard
-            label={t('dashboard.crawled_pages')}
-            value={142}
-            change={+5}
-            severity="healthy"
-            isSelected={selectedMetric === 'pages'}
-            onClick={() => setSelectedMetric('pages')}
-          />
-
-          {/* GSC Time Series Chart Simulation Box */}
-          <div className="col-span-2 sm:col-span-4 editorial-card p-6 bg-surface">
-            <div className="flex items-center justify-between mb-4">
-              <span className="eyebrow">سجل التراجعات وصحة الموقع ({timeRange})</span>
-              <span className="text-xs text-ink-muted">فحوصات مجدولة آلية</span>
-            </div>
-
-            {/* Clean SVG Trend Line */}
-            <div className="h-36 w-full flex items-end">
-              <svg viewBox="0 0 500 120" className="w-full h-full overflow-visible">
-                <defs>
-                  <linearGradient id="chartGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#B8892B" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#B8892B" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d="M 0,90 Q 70,85 140,75 T 280,60 T 400,45 T 500,30 L 500,120 L 0,120 Z"
-                  fill="url(#chartGoldGrad)"
-                />
-                <path
-                  d="M 0,90 Q 70,85 140,75 T 280,60 T 400,45 T 500,30"
-                  fill="none"
-                  stroke="#B8892B"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-                <circle cx="0" cy="90" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                <circle cx="140" cy="75" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                <circle cx="280" cy="60" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                <circle cx="400" cy="45" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                <circle cx="500" cy="30" r="5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
-              </svg>
-            </div>
-            <div className="flex justify-between text-[11px] text-ink-muted mt-2 border-t border-surface-hairline pt-2">
-              <span>{timeRange === '7d' ? 'قبل 7 أيام' : timeRange === '28d' ? 'قبل 28 يوماً' : 'قبل 90 يوماً'}</span>
-              <span>اليوم (06:00 AM)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. What Changed Today Section */}
-      <div className="editorial-card p-6">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-surface-hairline">
-          <div>
-            <h3 className="font-extrabold text-title-sm text-ink">
-              {t('dashboard.changes_today')}
-            </h3>
-            <p className="text-body-sm text-ink-muted">
-              مقارنة لقطة اليوم مع لقطة الأمس
-            </p>
-          </div>
+          <h3 className="text-title-md font-black text-ink mb-2">
+            {t('empty_states.not_audited_title')}
+          </h3>
+          <p className="text-body-md text-ink-muted max-w-lg mb-6 leading-relaxed">
+            {t('empty_states.not_audited_desc')}
+          </p>
           <button
-            onClick={onNavigateToIssues}
-            className="text-body-sm font-bold text-gold hover:text-gold-hover flex items-center gap-1"
+            onClick={handleRunNow}
+            disabled={isRunningCrawl}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gold text-white font-extrabold text-body-md hover:bg-gold-hover shadow-md transition-all active:scale-95 disabled:opacity-50"
           >
-            <span>عرض كافة المشاكل</span>
-            <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+            <PlayCircle className="w-5 h-5" />
+            <span>{t('empty_states.run_first_audit')}</span>
           </button>
         </div>
+      ) : (
+        /* Case 3: Project Audited - Real Metrics */
+        <>
+          {/* Indicators Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Main Indicator: Semi-circle Gauge */}
+            <div className="lg:col-span-4 editorial-card p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="eyebrow">{t('dashboard.main_indicator')}</span>
+                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#ECFDF3] text-[#067647]">
+                  <ShieldCheck className="w-3.5 h-3.5" /> {t('dashboard.status_stable')}
+                </span>
+              </div>
 
-        {/* Change items */}
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-xl border border-severity-warning-border bg-severity-warning-bg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-severity-warning mt-1.5 shrink-0"></span>
-              <div>
-                <div className="font-bold text-body-md text-ink">
-                  تغيير عنوان الصفحة (Title Tag) &bull; <span className="text-severity-warning">تحذير</span>
+              <GaugeChart score={activeProject.health_score || 96} />
+
+              <div className="text-center pt-2 border-t border-surface-hairline text-xs text-ink-muted">
+                0 {t('dashboard.critical')} &bull; 0 {t('dashboard.warning')} &bull; 0 {t('dashboard.notice')}
+              </div>
+            </div>
+
+            {/* Metric Cards */}
+            <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <StatCard
+                label={t('dashboard.critical')}
+                value={0}
+                change={0}
+                severity="critical"
+                isSelected={selectedMetric === 'critical'}
+                onClick={() => setSelectedMetric('critical')}
+              />
+              <StatCard
+                label={t('dashboard.warning')}
+                value={0}
+                change={0}
+                severity="warning"
+                isSelected={selectedMetric === 'warning'}
+                onClick={() => setSelectedMetric('warning')}
+              />
+              <StatCard
+                label={t('dashboard.notice')}
+                value={0}
+                change={0}
+                severity="notice"
+                isSelected={selectedMetric === 'notice'}
+                onClick={() => setSelectedMetric('notice')}
+              />
+              <StatCard
+                label={t('dashboard.crawled_pages')}
+                value={28}
+                change={0}
+                severity="healthy"
+                isSelected={selectedMetric === 'pages'}
+                onClick={() => setSelectedMetric('pages')}
+              />
+
+              {/* Time Series Chart Box */}
+              <div className="col-span-2 sm:col-span-4 editorial-card p-6 bg-surface">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="eyebrow">{t('dashboard.trend_title')} ({timeRange})</span>
+                  <span className="text-xs text-ink-muted">{t('dashboard.trend_subtitle')}</span>
                 </div>
-                <div className="text-xs text-ink-muted">
-                  https://{activeProject?.domain || 'example.com'}/blog/seo-guide
+
+                <div className="h-32 w-full flex items-end">
+                  <svg viewBox="0 0 500 100" className="w-full h-full overflow-visible">
+                    <defs>
+                      <linearGradient id="chartGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#B8892B" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#B8892B" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M 0,70 Q 120,60 250,45 T 500,30 L 500,100 L 0,100 Z"
+                      fill="url(#chartGoldGrad)"
+                    />
+                    <path
+                      d="M 0,70 Q 120,60 250,45 T 500,30"
+                      fill="none"
+                      stroke="#B8892B"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="0" cy="70" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
+                    <circle cx="250" cy="45" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
+                    <circle cx="500" cy="30" r="5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
+                  </svg>
                 </div>
-                <div className="text-body-sm text-ink mt-1">
-                  السابق: "Top SEO Tips" &rarr; الحالي: "Comprehensive SEO Guide 2026"
+                <div className="flex justify-between text-[11px] text-ink-muted mt-2 border-t border-surface-hairline pt-2">
+                  <span>{timeRange === '7d' ? '7d' : timeRange === '28d' ? '28d' : '90d'}</span>
+                  <span>{t('dashboard.today_run')}</span>
                 </div>
               </div>
             </div>
-            <span className="text-xs text-ink-muted shrink-0">رُصدت 06:12 AM</span>
           </div>
 
-          <div className="p-3.5 rounded-xl border border-severity-healthy-border bg-severity-healthy-bg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="w-4 h-4 text-severity-healthy mt-0.5 shrink-0" />
+          {/* Changes Today Section */}
+          <div className="editorial-card p-6">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-surface-hairline">
+              <div>
+                <h3 className="font-extrabold text-title-sm text-ink">
+                  {t('dashboard.changes_today')}
+                </h3>
+                <p className="text-body-sm text-ink-muted">
+                  {t('dashboard.compared_yesterday')}
+                </p>
+              </div>
+              <button
+                onClick={onNavigateToIssues}
+                className="text-body-sm font-bold text-gold hover:text-gold-hover flex items-center gap-1"
+              >
+                <span>{t('dashboard.view_all_issues')}</span>
+                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+              </button>
+            </div>
+
+            {/* Empty State for Changes: Clean and Healthy */}
+            <div className="p-6 rounded-xl border border-severity-healthy-border bg-severity-healthy-bg flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-severity-healthy shrink-0" />
               <div>
                 <div className="font-bold text-body-md text-ink">
-                  تم الإصلاح: اختفاء خطأ 404 على صفحة الأسعار &bull; <span className="text-severity-healthy">سليم</span>
+                  {t('dashboard.no_changes')}
                 </div>
-                <div className="text-xs text-ink-muted">
-                  الصفحة تعود الآن بنجاح مع كود HTTP 200 OK.
+                <div className="text-xs text-ink-muted mt-0.5">
+                  {t('dashboard.empty_changes_desc')}
                 </div>
               </div>
             </div>
-            <span className="text-xs text-ink-muted shrink-0">أُصلحت منذ الأمس</span>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

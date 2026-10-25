@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   const { locale, setLocale, t } = useI18n();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const displayName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'حسابي';
+  const displayName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || t('header.my_account');
 
   return (
     <header className="h-16 border-b border-surface-hairline bg-surface-card px-6 flex items-center justify-between sticky top-0 z-30">
@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="px-4 py-2 text-xs text-ink-muted border-b border-surface-hairline space-y-1.5">
-                  <div className="font-bold text-ink">الدعم الفني المباشر:</div>
+                  <div className="font-bold text-ink">{t('header.direct_support')}</div>
                   <a
                     href="https://www.linkedin.com/in/ismailelasiouty/"
                     target="_blank"
