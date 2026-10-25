@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useI18n } from '../i18n';
 import {
   LayoutDashboard,
+  Sparkles,
   AlertTriangle,
   FileText,
   Network,
@@ -16,22 +17,18 @@ import {
   PlusCircle,
   ExternalLink,
   Edit2,
+  Trash2,
 } from 'lucide-react';
-
-export interface Project {
-  id: string;
-  name: string;
-  domain: string;
-  favicon?: string;
-}
+import { ProjectData } from './EditProjectModal';
 
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
-  projects: Project[];
-  activeProject: Project;
-  onSelectProject: (p: Project) => void;
+  projects: ProjectData[];
+  activeProject: ProjectData | null;
+  onSelectProject: (p: ProjectData) => void;
   onAddProject: () => void;
+  onEditProject: (p: ProjectData) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -41,12 +38,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeProject,
   onSelectProject,
   onAddProject,
+  onEditProject,
 }) => {
   const { t } = useI18n();
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
   const navItems = [
     { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard },
+    { id: 'quick_audit', label: t('nav.quick_audit'), icon: Sparkles },
     { id: 'issues', label: t('nav.issues'), icon: AlertTriangle },
     { id: 'pages', label: t('nav.pages'), icon: FileText },
     { id: 'sitemap', label: t('nav.sitemap'), icon: Network },
@@ -60,36 +59,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-surface border-r border-surface-hairline flex flex-col h-[calc(100vh-4rem)] sticky top-16 select-none">
+    <aside className="w-64 bg-surface border-r border-surface-hairline flex flex-col h-[calc(100vh-4rem)] sticky top-16 select-none shrink-0">
       {/* 1. Project Switcher Card */}
       <div className="p-4 border-b border-surface-hairline relative">
-        <div
-          onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-          className="editorial-card p-3 cursor-pointer hover:border-gold-border transition-all flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3 overflow-hidden">
+        <div className="editorial-card p-3 transition-all flex items-center justify-between">
+          <div
+            onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+            className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer"
+          >
             <div className="w-8 h-8 rounded-lg bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-sm shrink-0">
               {activeProject?.name?.charAt(0) || 'P'}
             </div>
             <div className="overflow-hidden text-left rtl:text-right">
               <div className="font-bold text-body-md text-ink truncate leading-tight">
-                {activeProject?.name || 'My Website'}
+                {activeProject?.name || 'اختر موقعاً'}
               </div>
               <div className="text-xs text-ink-muted truncate">
                 {activeProject?.domain || 'example.com'}
               </div>
             </div>
           </div>
-          <ChevronDown className="w-4 h-4 text-ink-muted shrink-0" />
+
+          <div className="flex items-center gap-1.5 pl-2 rtl:pl-0 rtl:pr-2 shrink-0">
+            {activeProject && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditProject(activeProject);
+                }}
+                className="p-1 rounded hover:bg-gold-tint/60 text-ink-muted hover:text-gold"
+                title="تعديل المشروع"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <ChevronDown
+              onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+              className="w-4 h-4 text-ink-muted cursor-pointer hover:text-ink"
+            />
+          </div>
         </div>
 
         {/* Dropdown Menu */}
         {isSwitcherOpen && (
-          <div className="absolute top-full left-4 right-4 mt-2 bg-white rounded-card border border-surface-hairline shadow-lg z-50 py-2">
-            <div className="px-3 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider">
-              {projects.length} {t('header.projects_available')}
+          <div className="absolute top-full left-4 right-4 mt-2 bg-white rounded-card border border-surface-hairline shadow-xl z-50 py-2">
+            <div className="px-3 py-1 text-[11px] font-bold text-ink-muted uppercase tracking-wider flex justify-between items-center">
+              <span>{projects.length} {t('header.projects_available')}</span>
             </div>
-            <div className="max-h-48 overflow-y-auto my-1">
+            
+            <div className="max-h-48 overflow-y-auto my-1 divide-y divide-surface-hairline/50">
               {projects.map((p) => (
                 <div
                   key={p.id}
@@ -98,14 +116,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setIsSwitcherOpen(false);
                   }}
                   className={`px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-gold-tint/40 ${
-                    p.id === activeProject.id ? 'bg-gold-tint/60 text-gold-hover font-semibold' : 'text-ink'
+                    activeProject && p.id === activeProject.id ? 'bg-gold-tint/60 text-gold-hover font-semibold' : 'text-ink'
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="w-2 h-2 rounded-full bg-gold"></span>
                     <span className="text-body-sm truncate">{p.name}</span>
                   </div>
-                  <Edit2 className="w-3.5 h-3.5 text-ink-muted hover:text-ink" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsSwitcherOpen(false);
+                      onEditProject(p);
+                    }}
+                    className="p-1 rounded hover:bg-white text-ink-muted hover:text-gold"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -150,8 +177,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* 3. Bottom Footer info */}
       <div className="p-4 border-t border-surface-hairline text-center text-xs text-ink-muted">
-        <div>SEO GPS &bull; Zero-Cost Hosting</div>
-        <div className="mt-0.5 text-ink-subtle">Ismail El Asiouty</div>
+        <div>SEO GPS &bull; Zero-Cost SaaS</div>
+        <div className="mt-0.5 text-ink-subtle">by Ismail El Asiouty</div>
       </div>
     </aside>
   );

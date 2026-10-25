@@ -3,6 +3,7 @@
   "by_owner": "by Ismail El Asiouty",
   "nav": {
     "overview": "Overview",
+    "quick_audit": "Instant Quick Audit",
     "issues": "Issues",
     "pages": "Pages Explorer",
     "sitemap": "Sitemap",
@@ -16,10 +17,49 @@
   },
   "header": {
     "help": "Help & Docs",
-    "run_now": "Run First Crawl",
-    "recheck": "Re-check Now",
+    "run_now": "Run Analysis Now",
+    "recheck": "Run Analysis Now",
     "projects_available": "of 5 projects used",
-    "add_project": "Add Website"
+    "add_project": "Add Website",
+    "login": "Sign In",
+    "signup": "Sign Up"
+  },
+  "auth": {
+    "welcome": "Welcome to SEO GPS",
+    "subtitle": "Automated SEO regression monitoring & rank protection platform — by Ismail El Asiouty",
+    "login": "Sign In",
+    "signup": "Create Free Account",
+    "name": "Full Name",
+    "email": "Email Address",
+    "password": "Password",
+    "have_account": "Already have an account? Sign In",
+    "need_account": "Don't have an account? Sign Up for Free",
+    "support_title": "Experiencing any issue registering or using the tool?",
+    "support_desc": "Reach out directly to Ismail El Asiouty for personal assistance:",
+    "logout": "Sign Out"
+  },
+  "project_actions": {
+    "edit": "Edit Website",
+    "delete": "Delete Website",
+    "delete_confirm": "Are you sure you want to delete this website? All associated audits and snapshots will be permanently removed.",
+    "run_now": "Run Analysis Now",
+    "frequency": "Crawl Frequency",
+    "hourly": "Hourly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "day_of_week": "Day of the Week",
+    "hour_of_day": "Hour of the Day"
+  },
+  "quick_audit": {
+    "title": "Instant Quick Audit & Content Duplication Check",
+    "subtitle": "Analyze any URL immediately without needing to create or add a project",
+    "url_label": "Target URL to Audit",
+    "compare_label": "Secondary URL to compare for keyword/topic cannibalization (Optional)",
+    "email_checkbox": "Send a copy of audit results to my email",
+    "run_button": "Run Instant Quick Audit",
+    "running": "Extracting SEO signals & comparing semantics...",
+    "results_title": "Instant Diagnostic Report",
+    "cannibalization_title": "Semantic Topic & Keyword Cannibalization Analysis"
   },
   "dashboard": {
     "title": "SEO Health Monitor",
@@ -55,11 +95,13 @@
   },
   "onboarding": {
     "step_title": "Add New Website",
+    "edit_title": "Edit Website & Schedule",
     "root_url": "Website Root URL",
     "sitemap_url": "Sitemap URL (optional)",
     "crawl_time": "Daily Crawl Hour",
     "timezone": "Timezone",
     "recipient_email": "Alert Recipient Email",
-    "start_crawl": "Start First Crawl Now"
+    "start_crawl": "Save Website & Run Crawl Now",
+    "save_changes": "Save Changes"
   }
 }

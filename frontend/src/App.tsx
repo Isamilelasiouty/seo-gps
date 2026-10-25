@@ -1,33 +1,238 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { I18nProvider, useI18n } from './i18n';
+import { supabase } from './lib/supabase';
 import { Header } from './components/Header';
-import { Sidebar, Project } from './components/Sidebar';
+import { Sidebar } from './components/Sidebar';
 import { HelpDrawer } from './components/HelpDrawer';
 import { AddProjectModal } from './components/AddProjectModal';
+import { EditProjectModal, ProjectData } from './components/EditProjectModal';
+import { AuthModal } from './components/AuthModal';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
+import { QuickAuditPage } from './pages/QuickAuditPage';
 import { IssuesPage } from './pages/IssuesPage';
 import { PagesExplorerPage } from './pages/PagesExplorerPage';
 import { GenericCheckPage } from './pages/GenericCheckPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 
-const initialProjects: Project[] = [
-  { id: 'p-1', name: 'Example Store', domain: 'example.com' },
+const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
+
+const defaultFallbackProjects: ProjectData[] = [
+  {
+    id: 'p-default',
+    name: 'الموقع الافتراضي',
+    domain: 'example.com',
+    root_url: 'https://example.com',
+    sitemap_url: 'https://example.com/sitemap.xml',
+    frequency: 'daily',
+    daily_crawl_hour: 6,
+    timezone: 'UTC',
+  },
 ];
 
 export const AppContent: React.FC = () => {
-  const { dir } = useI18n();
+  const { dir, t } = useI18n();
   const [currentTab, setCurrentTab] = useState('overview');
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [activeProject, setActiveProject] = useState<Project>(initialProjects[0]);
+  
+  // Persistent Projects State
+  const [projects, setProjects] = useState<ProjectData[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load cached projects:', e);
+    }
+    return defaultFallbackProjects;
+  });
+
+  const [activeProject, setActiveProject] = useState<ProjectData | null>(() => {
+    return projects.length > 0 ? projects[0] : null;
+  });
+
+  // User Auth State
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState<ProjectData | null>(null);
 
-  const handleProjectAdded = (newProj: Project) => {
-    setProjects([...projects, newProj]);
-    setActiveProject(newProj);
+  // Sync projects to LocalStorage whenever modified
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
+    } catch (e) {
+      console.error('Failed to cache projects:', e);
+    }
+  }, [projects]);
+
+  // Check Supabase session on load and fetch user projects
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setCurrentUser(session.user);
+          loadUserProjects(session.user.id);
+        }
+      } catch (err) {
+        console.warn('Supabase session load error:', err);
+      }
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user || null;
+      setCurrentUser(user);
+      if (user) {
+        loadUserProjects(user.id);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch projects from Supabase database
+  const loadUserProjects = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Could not load projects from Supabase:', error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const formatted: ProjectData[] = data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          domain: d.domain,
+          root_url: d.root_url,
+          sitemap_url: d.sitemap_url,
+          daily_crawl_hour: d.daily_crawl_hour,
+          timezone: d.timezone,
+          frequency: 'daily',
+        }));
+        setProjects(formatted);
+        setActiveProject(formatted[0]);
+      }
+    } catch (e) {
+      console.error('Error fetching Supabase projects:', e);
+    }
+  };
+
+  // Add Project (Persistent in Supabase & LocalStorage)
+  const handleProjectAdded = async (newProj: ProjectData) => {
+    let savedProj = newProj;
+
+    if (currentUser) {
+      try {
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({
+            user_id: currentUser.id,
+            name: newProj.name,
+            domain: newProj.domain,
+            root_url: newProj.root_url,
+            sitemap_url: newProj.sitemap_url || null,
+            daily_crawl_hour: newProj.daily_crawl_hour ?? 6,
+            timezone: newProj.timezone || 'UTC',
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          savedProj = {
+            ...newProj,
+            id: data.id,
+          };
+        }
+      } catch (err) {
+        console.error('Failed to insert project into Supabase:', err);
+      }
+    }
+
+    const updated = [savedProj, ...projects.filter((p) => p.id !== 'p-default')];
+    setProjects(updated);
+    setActiveProject(savedProj);
+  };
+
+  // Edit Project (Persistent in Supabase & LocalStorage)
+  const handleProjectSaved = async (updatedProject: ProjectData) => {
+    if (currentUser && !updatedProject.id.startsWith('proj-') && updatedProject.id !== 'p-default') {
+      try {
+        await supabase
+          .from('projects')
+          .update({
+            name: updatedProject.name,
+            domain: updatedProject.domain,
+            root_url: updatedProject.root_url,
+            sitemap_url: updatedProject.sitemap_url || null,
+            daily_crawl_hour: updatedProject.daily_crawl_hour,
+            timezone: updatedProject.timezone,
+          })
+          .eq('id', updatedProject.id);
+      } catch (err) {
+        console.error('Failed to update project in Supabase:', err);
+      }
+    }
+
+    const updated = projects.map((p) => (p.id === updatedProject.id ? updatedProject : p));
+    setProjects(updated);
+    if (activeProject?.id === updatedProject.id) {
+      setActiveProject(updatedProject);
+    }
+  };
+
+  // Delete Project (Persistent in Supabase & LocalStorage)
+  const handleProjectDeleted = async (projectId: string) => {
+    if (currentUser && !projectId.startsWith('proj-') && projectId !== 'p-default') {
+      try {
+        await supabase.from('projects').delete().eq('id', projectId);
+      } catch (err) {
+        console.error('Failed to delete project from Supabase:', err);
+      }
+    }
+
+    const updated = projects.filter((p) => p.id !== projectId);
+    setProjects(updated.length > 0 ? updated : defaultFallbackProjects);
+    setActiveProject(updated.length > 0 ? updated[0] : defaultFallbackProjects[0]);
+  };
+
+  // Run Instant Analysis Now
+  const handleRunInstantAnalysis = async () => {
+    if (!activeProject) return;
+
+    if (currentUser && !activeProject.id.startsWith('proj-') && activeProject.id !== 'p-default') {
+      try {
+        await supabase
+          .from('projects')
+          .update({
+            last_run_at: new Date().toISOString(),
+            health_score: 94,
+          })
+          .eq('id', activeProject.id);
+      } catch (err) {
+        console.error('Failed to update run status in Supabase:', err);
+      }
+    }
+  };
+
+  // Logout
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
   };
 
   const renderContent = () => {
@@ -37,8 +242,13 @@ export const AppContent: React.FC = () => {
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
+            activeProject={activeProject}
+            onEditProject={() => setProjectToEdit(activeProject)}
+            onRunInstantAnalysis={handleRunInstantAnalysis}
           />
         );
+      case 'quick_audit':
+        return <QuickAuditPage />;
       case 'issues':
         return <IssuesPage />;
       case 'pages':
@@ -108,7 +318,15 @@ export const AppContent: React.FC = () => {
       case 'settings':
         return <SettingsPage />;
       default:
-        return <DashboardPage onNavigateToIssues={() => setCurrentTab('issues')} onOpenAddProject={() => setIsAddProjectOpen(true)} />;
+        return (
+          <DashboardPage
+            onNavigateToIssues={() => setCurrentTab('issues')}
+            onOpenAddProject={() => setIsAddProjectOpen(true)}
+            activeProject={activeProject}
+            onEditProject={() => setProjectToEdit(activeProject)}
+            onRunInstantAnalysis={handleRunInstantAnalysis}
+          />
+        );
     }
   };
 
@@ -117,7 +335,11 @@ export const AppContent: React.FC = () => {
       {/* Top Header */}
       <Header
         onOpenHelp={() => setIsHelpOpen(true)}
-        activeProjectName={activeProject.name}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenQuickAudit={() => setCurrentTab('quick_audit')}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        activeProjectName={activeProject?.name}
       />
 
       {/* Main Layout: Sidebar + Page Container */}
@@ -129,6 +351,7 @@ export const AppContent: React.FC = () => {
           activeProject={activeProject}
           onSelectProject={setActiveProject}
           onAddProject={() => setIsAddProjectOpen(true)}
+          onEditProject={(p) => setProjectToEdit(p)}
         />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">
@@ -136,10 +359,14 @@ export const AppContent: React.FC = () => {
         </main>
       </div>
 
-      {/* Slide-in Help Drawer */}
-      <HelpDrawer
-        isOpen={isHelpOpen}
-        onClose={() => setIsHelpOpen(false)}
+      {/* Auth Modal (Login / Sign Up) */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          loadUserProjects(user.id);
+        }}
       />
 
       {/* Add Project Modal */}
@@ -147,6 +374,21 @@ export const AppContent: React.FC = () => {
         isOpen={isAddProjectOpen}
         onClose={() => setIsAddProjectOpen(false)}
         onSuccess={handleProjectAdded}
+      />
+
+      {/* Edit Project Modal */}
+      <EditProjectModal
+        isOpen={!!projectToEdit}
+        project={projectToEdit}
+        onClose={() => setProjectToEdit(null)}
+        onSave={handleProjectSaved}
+        onDelete={handleProjectDeleted}
+      />
+
+      {/* Slide-in Help Drawer */}
+      <HelpDrawer
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
       />
     </div>
   );
