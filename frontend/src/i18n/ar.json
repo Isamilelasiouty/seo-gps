@@ -1,0 +1,65 @@
+{
+  "product_name": "SEO GPS",
+  "by_owner": "بواسطة إسماعيل الأسيوطي",
+  "nav": {
+    "overview": "نظرة عامة",
+    "issues": "المشاكل والتنبيهات",
+    "pages": "مستكشف الصفحات",
+    "sitemap": "ملف السايت ماب",
+    "schema": "البيانات المنظمة (Schema)",
+    "metadata": "العناوين والوصف (Metadata)",
+    "canonicals": "الروابط الأساسية (Canonical)",
+    "similarity": "ازدواجية المحتوى (Cannibalization)",
+    "subdomains": "النطاقات الفرعية (Subdomains)",
+    "history": "سجل الفحوصات",
+    "settings": "الإعدادات"
+  },
+  "header": {
+    "help": "المساعدة والتوثيق",
+    "run_now": "بدء أول فحص الآن",
+    "recheck": "إعادة الفحص الآن",
+    "projects_available": "من أصل 5 مواقع مستخدمة",
+    "add_project": "إضافة موقع جديد"
+  },
+  "dashboard": {
+    "title": "مراقب صحة السيو اليومي",
+    "health_score": "درجة صحة الموقع",
+    "main_indicator": "المؤشر الرئيسي",
+    "key_indicators": "مؤشرات الأداء الأساسية",
+    "critical": "حرجة (Critical)",
+    "warning": "تحذير (Warning)",
+    "notice": "ملاحظة (Notice)",
+    "healthy": "سليم (Healthy)",
+    "crawled_pages": "الصفحات المفحوصة",
+    "indexable_pages": "صفحات قابلة للفهرسة",
+    "changes_today": "تغييرات رُصدت اليوم",
+    "no_changes": "كل شيء مستقر تماماً! لم يتم رصد أي تراجع أو خلل منذ الأمس.",
+    "getting_started": "خطوات البدء السريع",
+    "last_run": "آخر فحص",
+    "next_run": "الفحص المجدول القادم",
+    "range_7d": "7 أيام",
+    "range_28d": "28 يوماً",
+    "range_90d": "90 يوماً"
+  },
+  "issues": {
+    "affected_url": "الرابط المتأثر",
+    "issue_type": "نوع المشكلة",
+    "severity": "مستوى الخطورة",
+    "first_seen": "أول ظهور",
+    "status": "الحالة",
+    "action": "الإجراء",
+    "validate_fix": "التحقق من الإصلاح",
+    "export_csv": "تصدير CSV",
+    "search_placeholder": "تصفية حسب الرابط أو نوع التنبيه...",
+    "before_after": "مقارنة الحالة السابقة بالحالية"
+  },
+  "onboarding": {
+    "step_title": "إضافة موقع جديد",
+    "root_url": "رابط الموقع الرئيسي",
+    "sitemap_url": "رابط السايت ماب (اختياري)",
+    "crawl_time": "وقت الفحص اليومي",
+    "timezone": "المنطقة الزمنية",
+    "recipient_email": "البريد الإلكتروني للتقارير",
+    "start_crawl": "بدء الفحص الأول فوراً"
+  }
+}

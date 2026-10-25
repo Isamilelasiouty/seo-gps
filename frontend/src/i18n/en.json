@@ -1,0 +1,65 @@
+{
+  "product_name": "SEO GPS",
+  "by_owner": "by Ismail El Asiouty",
+  "nav": {
+    "overview": "Overview",
+    "issues": "Issues",
+    "pages": "Pages Explorer",
+    "sitemap": "Sitemap",
+    "schema": "Schema",
+    "metadata": "Metadata",
+    "canonicals": "Canonicals",
+    "similarity": "Content Cannibalization",
+    "subdomains": "Subdomains",
+    "history": "History",
+    "settings": "Settings"
+  },
+  "header": {
+    "help": "Help & Docs",
+    "run_now": "Run First Crawl",
+    "recheck": "Re-check Now",
+    "projects_available": "of 5 projects used",
+    "add_project": "Add Website"
+  },
+  "dashboard": {
+    "title": "SEO Health Monitor",
+    "health_score": "Health Score",
+    "main_indicator": "MAIN INDICATOR",
+    "key_indicators": "KEY SEO INDICATORS",
+    "critical": "Critical",
+    "warning": "Warning",
+    "notice": "Notice",
+    "healthy": "Healthy",
+    "crawled_pages": "Crawled Pages",
+    "indexable_pages": "Indexable Pages",
+    "changes_today": "Changes Detected Today",
+    "no_changes": "All quiet today! No regressions detected since yesterday.",
+    "getting_started": "Getting Started",
+    "last_run": "Last Crawl",
+    "next_run": "Next Scheduled Crawl",
+    "range_7d": "7 Days",
+    "range_28d": "28 Days",
+    "range_90d": "90 Days"
+  },
+  "issues": {
+    "affected_url": "Affected URL",
+    "issue_type": "Issue Type",
+    "severity": "Severity",
+    "first_seen": "First Seen",
+    "status": "Status",
+    "action": "Action",
+    "validate_fix": "Validate Fix",
+    "export_csv": "Export CSV",
+    "search_placeholder": "Filter by URL or issue title...",
+    "before_after": "Before vs After Snapshot"
+  },
+  "onboarding": {
+    "step_title": "Add New Website",
+    "root_url": "Website Root URL",
+    "sitemap_url": "Sitemap URL (optional)",
+    "crawl_time": "Daily Crawl Hour",
+    "timezone": "Timezone",
+    "recipient_email": "Alert Recipient Email",
+    "start_crawl": "Start First Crawl Now"
+  }
+}

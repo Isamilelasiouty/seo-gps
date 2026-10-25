@@ -1,0 +1,41 @@
+SEO GPS by Ismail El Asiouty
+Daily SEO Regression Report for {{ domain }} ({{ run_date }})
+Health Score: {{ health_score }}/100
+
+=======================================================
+Summary:
+- Critical Issues: {{ critical_count }}
+- Warnings: {{ warning_count }}
+- Notices: {{ notice_count }}
+=======================================================
+
+{% if critical_issues %}
+--- CRITICAL ISSUES ({{ critical_issues|length }}) ---
+{% for issue in critical_issues %}
+* {{ issue.title }}
+  URL: {{ issue.url }}
+  Details: {{ issue.details }}
+{% endfor %}
+{% endif %}
+
+{% if warning_issues %}
+--- WARNINGS ({{ warning_issues|length }}) ---
+{% for issue in warning_issues %}
+* {{ issue.title }}
+  URL: {{ issue.url }}
+  Details: {{ issue.details }}
+{% endfor %}
+{% endif %}
+
+{% if resolved_issues %}
+--- RESOLVED SINCE YESTERDAY ({{ resolved_issues|length }}) ---
+{% for res in resolved_issues %}
+* [FIXED] {{ res.title }} ({{ res.url }})
+{% endfor %}
+{% endif %}
+
+View full interactive reports in your dashboard:
+{{ dashboard_url }}
+
+To change preferences or unsubscribe:
+{{ unsubscribe_url }}

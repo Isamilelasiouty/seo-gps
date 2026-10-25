@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #FFFFFF;
+  --bg-surface: #FAFAF7;
+  --bg-gold-tint: #FBF5E4;
+  --primary-gold: #B8892B;
+  --primary-gold-hover: #9A7220;
+  --border-gold: #E9D9A8;
+  --border-hairline: #ECE8DC;
+  --text-ink: #16140F;
+  --text-muted: #6B665A;
+
+  /* Severity Tokens */
+  --color-critical: #B42318;
+  --color-warning: #B54708;
+  --color-notice: #175CD3;
+  --color-healthy: #067647;
+}
+
+/* Eye-comfort typography and tabular numbers */
+html {
+  font-size: 16px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[dir="rtl"] {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+.tnum {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle card styling */
+.editorial-card {
+  background-color: #FFFFFF;
+  border: 1px solid #ECE8DC;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(22, 20, 15, 0.03);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6B665A;
+}
+
+/* Clean scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAFAF7;
+}
+::-webkit-scrollbar-thumb {
+  background: #ECE8DC;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #E9D9A8;
+}
