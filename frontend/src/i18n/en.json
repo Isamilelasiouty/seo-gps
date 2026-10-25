@@ -100,7 +100,13 @@
     "meta_title": "Titles, Descriptions & Metadata Tags",
     "schema_title": "Structured Data (Schema.org) Discovery",
     "cannibalization_title": "Semantic Topic & Keyword Cannibalization Overlap",
-    "all_healthy": "No critical issues detected in this audit!"
+    "all_healthy": "No critical issues detected in this audit!",
+    "sitemap_notice": "Note: Could not automatically read sitemap.xml for this domain. Discovered primary site pages have been audited with full cannibalization analysis.",
+    "crawling_pages": "Auditing pages: {current} of {total} pages...",
+    "discovering_sitemap": "Inspecting sitemap.xml and discovering URLs...",
+    "analyzing_cannibalization": "Analyzing keyword competition and content cannibalization...",
+    "email_sent_success": "Audit report copy successfully sent to: {email}",
+    "email_fallback_notice": "Report saved to dashboard! Email delivery note: sending to external recipients requires a verified domain in mail provider."
   },
   "empty_states": {
     "no_projects_title": "No Websites Monitored Yet",

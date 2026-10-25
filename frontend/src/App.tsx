@@ -19,6 +19,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 
 const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
+const LAST_ACTIVE_PROJECT_KEY = 'seo_gps_last_active_project_id';
 
 export const AppContent: React.FC = () => {
   const { dir, t } = useI18n();
@@ -46,13 +47,20 @@ export const AppContent: React.FC = () => {
   const [activeProject, setActiveProject] = useState<ProjectData | null>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const clean = parsed.filter(
             (p: any) => p && p.id !== 'p-default' && p.domain !== 'example.com' && p.name !== 'الموقع الافتراضي'
           );
-          if (clean.length > 0) return clean[0];
+          if (clean.length > 0) {
+            if (lastId) {
+              const matched = clean.find((p: any) => p.id === lastId);
+              if (matched) return matched;
+            }
+            return clean[0];
+          }
         }
       }
     } catch (e) {}
@@ -61,6 +69,7 @@ export const AppContent: React.FC = () => {
 
   // User Auth State
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
@@ -75,40 +84,61 @@ export const AppContent: React.FC = () => {
     }
   }, [projects]);
 
+  // Sync active project id to LocalStorage
+  useEffect(() => {
+    if (activeProject?.id) {
+      try {
+        localStorage.setItem(LAST_ACTIVE_PROJECT_KEY, activeProject.id);
+      } catch (e) {}
+    }
+  }, [activeProject]);
+
   // Keep activeProject synchronized with projects array
   useEffect(() => {
     if (projects.length === 0) {
       setActiveProject(null);
     } else if (!activeProject || !projects.some((p) => p.id === activeProject.id)) {
-      setActiveProject(projects[0]);
+      const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
+      const matched = lastId ? projects.find((p) => p.id === lastId) : null;
+      setActiveProject(matched || projects[0]);
     }
   }, [projects]);
 
   // Check Supabase session on load and fetch user projects
   useEffect(() => {
+    let mounted = true;
+
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!mounted) return;
         if (session?.user) {
           setCurrentUser(session.user);
-          loadUserProjects(session.user.id);
+          await loadUserProjects(session.user.id);
         }
       } catch (err) {
         console.warn('Supabase session load error:', err);
+      } finally {
+        if (mounted) {
+          setIsAuthLoading(false);
+        }
       }
     };
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       const user = session?.user || null;
       setCurrentUser(user);
       if (user) {
-        loadUserProjects(user.id);
+        await loadUserProjects(user.id);
       }
+      setIsAuthLoading(false);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -142,9 +172,10 @@ export const AppContent: React.FC = () => {
           last_run_at: d.last_run_at || undefined,
         }));
         setProjects(formatted);
-        if (formatted.length > 0) {
-          setActiveProject(formatted[0]);
-        }
+
+        const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
+        const matched = lastId ? formatted.find((p) => p.id === lastId) : null;
+        setActiveProject(matched || formatted[0]);
       }
     } catch (e) {
       console.error('Error fetching Supabase projects:', e);
@@ -263,6 +294,9 @@ export const AppContent: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('seo_gps_supabase_auth_token');
+    } catch (e) {}
   };
 
   const isAdmin = currentUser?.email === 'ismailelasiouty3@gmail.com';
@@ -393,6 +427,7 @@ export const AppContent: React.FC = () => {
         currentUser={currentUser}
         onLogout={handleLogout}
         activeProjectName={activeProject?.name}
+        isAuthLoading={isAuthLoading}
       />
 
       {/* Main Layout: Sidebar + Page Container */}

@@ -28,34 +28,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Requirement 7: Send notification to Ismail El Asiouty on new user signup
   const notifyOwnerOfSignup = async (userName: string, userEmail: string) => {
     try {
-      const resendKey = import.meta.env.VITE_RESEND_API_KEY;
-      if (!resendKey) return;
-      const timestamp = new Date().toLocaleString();
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
+      await supabase.functions.invoke('send-audit-report', {
+        body: {
+          type: 'signup_notification',
+          userName,
+          userEmail,
         },
-        body: JSON.stringify({
-          from: 'SEO GPS <onboarding@resend.dev>',
-          to: ['ismailelasiouty3@gmail.com'],
-          subject: `[SEO GPS] مستخدم جديد سجل في المنصة: ${userName}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; padding: 20px; color: #16140F; background: #FAFAF7;">
-              <h2 style="color: #B8892B; margin-bottom: 12px;">مستخدم جديد سجل في SEO GPS 🎉</h2>
-              <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                <tr><td style="padding: 8px; font-weight: bold;">اسم المستخدم:</td><td style="padding: 8px;">${userName}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">البريد الإلكتروني:</td><td style="padding: 8px;">${userEmail}</td></tr>
-                <tr><td style="padding: 8px; font-weight: bold;">وقت التسجيل:</td><td style="padding: 8px;">${timestamp}</td></tr>
-              </table>
-              <p style="margin-top: 20px; font-size: 13px; color: #6B665A;">SEO GPS by Ismail El Asiouty</p>
-            </div>
-          `,
-        }),
       });
     } catch (err) {
-      console.warn('Owner notification caught:', err);
+      console.warn('Owner notification handled:', err);
     }
   };
 

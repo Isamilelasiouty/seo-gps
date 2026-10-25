@@ -9,6 +9,7 @@ interface HeaderProps {
   currentUser: any;
   onLogout: () => void;
   activeProjectName?: string;
+  isAuthLoading?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout,
   activeProjectName,
+  isAuthLoading = false,
 }) => {
   const { locale, setLocale, t } = useI18n();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -77,7 +79,9 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* User Account / Login State */}
-        {currentUser ? (
+        {isAuthLoading ? (
+          <div className="h-8 w-24 bg-surface rounded-xl border border-surface-hairline animate-pulse"></div>
+        ) : currentUser ? (
           <div className="relative">
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
