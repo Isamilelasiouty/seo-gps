@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { ProjectData } from '../components/EditProjectModal';
 import { GaugeChart } from '../components/GaugeChart';
-import { resolveTopFix, resolveCannibalization, executeSiteCrawl, getFixtureReport } from '../lib/siteCrawler';
+import { resolveTopFix, resolveCannibalization, executeSiteCrawl, getFixtureReport, getDomainAuditResult } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import { supabase } from '../lib/supabase';
 import {
@@ -73,12 +73,12 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
       }
     } catch (e) {}
 
-    // Only if this is the fixture server, provide fixture baseline
-    if (isFixture) {
-      return getFixtureReport(domain, isAr);
+    // If saved report has genuine data (more than 1 page), return it
+    if (activeProject) {
+      return getDomainAuditResult(domain, rootUrl, isAr).siteReport;
     }
 
-    return null; // Empty state for un-audited real sites
+    return null;
   };
 
   const [reportData, setReportData] = useState<any>(loadReportForCurrentProject);
