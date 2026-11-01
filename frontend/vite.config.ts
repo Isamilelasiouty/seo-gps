@@ -1,5 +1,7 @@
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { executeSiteCrawl } from './src/lib/siteCrawler';
 
 function quickAuditApiPlugin(): Plugin {
@@ -72,7 +74,24 @@ function quickAuditApiPlugin(): Plugin {
                 return;
               }
 
-              const resendApiKey = process.env.RESEND_API_KEY || '';
+              let resendApiKey = process.env.RESEND_API_KEY || '';
+              if (!resendApiKey) {
+                try {
+                  const envPath = path.resolve(process.cwd(), '.env');
+                  if (fs.existsSync(envPath)) {
+                    const envContent = fs.readFileSync(envPath, 'utf-8');
+                    const match = envContent.match(/RESEND_API_KEY\s*=\s*(.+)/);
+                    if (match) resendApiKey = match[1].trim();
+                  }
+                } catch (e) {}
+              }
+
+              if (!resendApiKey) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'RESEND_API_KEY not configured' }));
+                return;
+              }
+
               const emailPayload = {
                 from: 'SEO GPS <onboarding@resend.dev>',
                 to: [recipient],
