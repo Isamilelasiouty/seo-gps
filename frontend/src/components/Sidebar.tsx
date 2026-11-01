@@ -49,15 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard },
-    { id: 'quick_audit', label: t('nav.quick_audit'), icon: Sparkles },
+    { id: 'site_report', label: t('nav.site_report') || 'Site Report', icon: Sparkles },
     { id: 'issues', label: t('nav.issues'), icon: AlertTriangle },
     { id: 'pages', label: t('nav.pages'), icon: FileText },
-    { id: 'sitemap', label: t('nav.sitemap'), icon: Network },
-    { id: 'schema', label: t('nav.schema'), icon: Code2 },
-    { id: 'metadata', label: t('nav.metadata'), icon: Tags },
-    { id: 'canonicals', label: t('nav.canonicals'), icon: Link2 },
-    { id: 'similarity', label: t('nav.similarity'), icon: Copy },
-    { id: 'subdomains', label: t('nav.subdomains'), icon: ShieldAlert },
     { id: 'history', label: t('nav.history'), icon: History },
     { id: 'settings', label: t('nav.settings'), icon: Settings },
   ];

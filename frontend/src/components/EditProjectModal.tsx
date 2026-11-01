@@ -13,6 +13,7 @@ export interface ProjectData {
   frequency?: 'hourly' | 'daily' | 'weekly';
   crawl_day?: string;
   recipient_email?: string;
+  extra_urls?: string;
   health_score?: number;
   last_run_at?: string;
 }
@@ -265,7 +266,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl text-body-sm text-ink-muted hover:text-ink font-semibold"
               >
-                {t('project_actions.delete') ? 'Cancel' : 'إلغاء'}
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"

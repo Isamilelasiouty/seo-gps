@@ -43,7 +43,34 @@ flowchart TD
 
 ---
 
-## 3. Data Flow & Delta-Only Alerting
+## 4. First-Scan Baseline & Issue Lifecycle Architecture (v2.0)
+
+```mermaid
+flowchart TD
+    Add["User Adds Website (+ Optional Extra URLs)"] --> Baseline["1. First Scan (Baseline)"]
+    Baseline --> Sanitize["Smart URL Sanitizer & Slug Recovery"]
+    Sanitize --> Invariants["Accuracy Verifier (verify_report)"]
+    Invariants --> Report["Site Report Snapshot (7 Sections + Top 10 Fixes)"]
+    Report --> BaseMail["First Scan Report Email"]
+    
+    Daily["2. Daily Scheduled Run"] --> Crawl["Polite Crawler (Sitemap + BFS + Imports)"]
+    Crawl --> Lifecycle["Issue Lifecycle Manager (Deterministic Fingerprints)"]
+    Lifecycle --> Reconciliation{"Reconcile with Stored Issues"}
+    Reconciliation -->|Not seen before| New["new"]
+    Reconciliation -->|Open since earlier| Persist["persisting (days_open, is_baseline)"]
+    Reconciliation -->|Was open, now gone| Resolv["resolved"]
+    Reconciliation -->|Was resolved, came back| Reapp["reappeared"]
+    Reconciliation -->|User marked ignore| Ign["ignored"]
+    
+    New & Persist & Resolv & Reapp --> DailyMail["Daily Alert Email (.local/outbox or Resend)"]
+```
+
+### 4.1. Core Invariants & Accuracy Standards
+1. **Reconciliation Invariant**: `total_discovered == total_crawled + total_skipped`. The sum of all status classifications equals `total_crawled`.
+2. **Two-Step Confirmation**: Transient failures (404, 5xx, timeouts) re-request with browser User-Agent before recording.
+3. **Structured Evidence**: Every finding stores exact requested URL, sanitized URL, response codes, hops, headers, timestamp, and source provenance.
+4. **Deterministic Fingerprints**: SHA-256 hash of `check_id + normalized URL + problem attributes` ensuring idempotent reconciliation across scans.
+5. **Local First Support**: SQLite database parity in `.local/seo_gps.db`, mock fixture server on `localhost:8099` (Day 1 baseline and Day 2 regression states), and `.local/outbox/` email persistence.
 
 1. **Hourly Dispatcher**:
    - Fires every hour on GitHub Actions.

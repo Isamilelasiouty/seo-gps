@@ -15,16 +15,29 @@ interface I18nContextType {
 const translations: Record<Locale, any> = { en, ar };
 
 const I18nContext = createContext<I18nContextType>({
-  locale: 'en',
+  locale: 'ar',
   setLocale: () => {},
   t: (path: string) => path,
-  dir: 'ltr',
+  dir: 'rtl',
 });
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [locale, setLocale] = useState<Locale>('en');
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    try {
+      const saved = localStorage.getItem('seo_gps_locale');
+      if (saved === 'en' || saved === 'ar') return saved;
+    } catch (e) {}
+    return 'ar';
+  });
 
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
+
+  const setLocale = (l: Locale) => {
+    setLocaleState(l);
+    try {
+      localStorage.setItem('seo_gps_locale', l);
+    } catch (e) {}
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('dir', dir);

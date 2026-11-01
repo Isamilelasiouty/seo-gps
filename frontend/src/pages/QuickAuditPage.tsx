@@ -2,454 +2,213 @@ import React, { useState } from 'react';
 import { useI18n } from '../i18n';
 import { GaugeChart } from '../components/GaugeChart';
 import { supabase } from '../lib/supabase';
+import { FullAuditResult, resolveCannibalization } from '../lib/siteCrawler';
+import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import {
   Sparkles,
   Globe,
   FileCode,
-  Mail,
   CheckCircle,
   AlertTriangle,
-  AlertOctagon,
   Info,
-  Clock,
   ExternalLink,
-  ChevronDown,
   Layers,
-  ShieldCheck,
-  Send,
   Loader2,
+  FileText,
+  TrendingUp,
+  Mail,
+  Download,
+  Printer,
+  ChevronDown,
 } from 'lucide-react';
 
-export interface CrawledPageResult {
-  url: string;
-  statusCode: number;
-  responseTimeMs: number;
-  canonical: string;
-  isIndexable: boolean;
-  title: string;
-  titleLength: number;
-  description: string;
-  descLength: number;
-  schemas: string[];
-  h1: string;
-  issues: { severity: 'critical' | 'warning' | 'notice'; title: string; details: string }[];
+interface QuickAuditPageProps {
+  onNavigateToSiteReport?: () => void;
+  onNavigateToIssues?: () => void;
+  onNavigateToPages?: () => void;
+  onSaveAsProject?: (project: any) => void;
+  activeProject?: any;
 }
 
-export interface CannibalizationPair {
-  urlA: string;
-  titleA: string;
-  urlB: string;
-  titleB: string;
-  similarity: number;
-  conflictingKeywords: string[];
-}
+export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
+  onNavigateToSiteReport,
+  onNavigateToIssues,
+  onNavigateToPages,
+  activeProject,
+}) => {
+  const { t, locale, dir } = useI18n();
+  const isAr = locale !== 'en';
 
-// Common stop words to strip before keyword comparison
-const STOP_WORDS = new Set([
-  'the', 'and', 'for', 'with', 'from', 'about', 'our', 'your', 'page', 'home', 'best',
-  'top', 'free', 'all', 'new', 'online', 'official', 'more', 'how', 'what', 'when',
-  'في', 'من', 'على', 'إلى', 'عن', 'مع', 'هذا', 'هذه', 'كل', 'أفضل', 'موقع', 'صفحة', 'رئيسية',
-  'أو', 'لا', 'أن', 'هو', 'هي', 'التي', 'الذي', 'لـ', 'بـ', 'تم', 'كان'
-]);
-
-export const QuickAuditPage: React.FC = () => {
-  const { t, locale } = useI18n();
-  const [rootUrl, setRootUrl] = useState('');
-  const [sitemapUrl, setSitemapUrl] = useState('');
-  const [sendEmail, setSendEmail] = useState(false);
-  const [recipientEmail, setRecipientEmail] = useState('');
+  const [rootUrl, setRootUrl] = useState(activeProject?.root_url || '');
+  const [sitemapUrl, setSitemapUrl] = useState(activeProject?.sitemap_url || '');
+  const [recipientEmail, setRecipientEmail] = useState(activeProject?.recipient_email || '');
+  const [emailError, setEmailError] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressPercent, setProgressPercent] = useState<number>(0);
-  const [activeSection, setActiveSection] = useState<'all' | 'status' | 'canonical' | 'meta' | 'schema' | 'cannibalization'>('all');
-  const [sitemapWarning, setSitemapWarning] = useState<string>('');
-
-  // Audit Results State
-  const [pages, setPages] = useState<CrawledPageResult[]>([]);
-  const [cannibalization, setCannibalization] = useState<CannibalizationPair[]>([]);
-  const [healthScore, setHealthScore] = useState<number | null>(null);
-  const [emailStatus, setEmailStatus] = useState<string>('');
-
-  // Helper to extract keywords from string
-  const extractKeywords = (text: string): string[] => {
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-  };
-
-  // Helper to calculate keyword cannibalization overlap
-  const calculateOverlap = (wordsA: string[], wordsB: string[]): { similarity: number; keywords: string[] } => {
-    if (wordsA.length === 0 || wordsB.length === 0) return { similarity: 0, keywords: [] };
-    const setA = new Set(wordsA);
-    const setB = new Set(wordsB);
-    const intersection = wordsA.filter((w) => setB.has(w));
-    const uniqueCommon = Array.from(new Set(intersection));
-    const union = new Set([...wordsA, ...wordsB]);
-    const jaccard = Math.round((uniqueCommon.length / union.size) * 100);
-    return { similarity: jaccard, keywords: uniqueCommon };
-  };
-
-  // Fetch XML sitemap or discover from robots.txt
-  const discoverSitemapUrls = async (targetRoot: string, customSitemap?: string): Promise<{ urls: string[]; notice?: string }> => {
-    const cleanRoot = targetRoot.replace(/\/$/, '');
-    const sitemapCandidates = customSitemap ? [customSitemap] : [
-      `${cleanRoot}/sitemap.xml`,
-      `${cleanRoot}/sitemap_index.xml`,
-      `${cleanRoot}/wp-sitemap.xml`
-    ];
-
-    let discoveredUrls: string[] = [];
-
-    for (const smUrl of sitemapCandidates) {
-      try {
-        const res = await fetch(smUrl, { method: 'GET', signal: AbortSignal.timeout(4000) });
-        if (res.ok) {
-          const xmlText = await res.text();
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-
-          // Check if sitemap index
-          const sitemapNodes = xmlDoc.getElementsByTagName('sitemap');
-          if (sitemapNodes.length > 0) {
-            // Sitemap index: parse sub-sitemaps
-            for (let i = 0; i < Math.min(sitemapNodes.length, 3); i++) {
-              const loc = sitemapNodes[i].getElementsByTagName('loc')[0]?.textContent?.trim();
-              if (loc) {
-                try {
-                  const subRes = await fetch(loc, { method: 'GET', signal: AbortSignal.timeout(3000) });
-                  if (subRes.ok) {
-                    const subText = await subRes.text();
-                    const subDoc = parser.parseFromString(subText, 'text/xml');
-                    const subUrlNodes = subDoc.getElementsByTagName('url');
-                    for (let j = 0; j < subUrlNodes.length; j++) {
-                      const u = subUrlNodes[j].getElementsByTagName('loc')[0]?.textContent?.trim();
-                      if (u && u.startsWith(cleanRoot)) discoveredUrls.push(u);
-                    }
-                  }
-                } catch (e) {}
-              }
-            }
-          }
-
-          // Check direct urlset
-          const urlNodes = xmlDoc.getElementsByTagName('url');
-          if (urlNodes.length > 0) {
-            for (let i = 0; i < urlNodes.length; i++) {
-              const u = urlNodes[i].getElementsByTagName('loc')[0]?.textContent?.trim();
-              if (u && u.startsWith(cleanRoot)) discoveredUrls.push(u);
-            }
-          }
-
-          if (discoveredUrls.length > 0) {
-            break;
-          }
-        }
-      } catch (err) {
-        // Fallback to next candidate
+  const [activeSection, setActiveSection] = useState<'all' | 'cannibalization' | 'status' | 'schema'>('all');
+  const [sitemapNotice, setSitemapNotice] = useState<string>('');
+  const [auditResult, setAuditResult] = useState<FullAuditResult | null>(() => {
+    try {
+      const saved = localStorage.getItem('seo_gps_report_quick');
+      const savedPages = localStorage.getItem('seo_gps_pages_quick');
+      const savedIssues = localStorage.getItem('seo_gps_issues_quick');
+      if (saved && savedPages) {
+        const report = JSON.parse(saved);
+        const pages = JSON.parse(savedPages);
+        const issues = savedIssues ? JSON.parse(savedIssues) : [];
+        return {
+          success: true,
+          domain: report.domain,
+          rootUrl: report.root_url,
+          summary: report.summary,
+          pages,
+          issues,
+          cannibalization: report.section_cannibalization?.clusters || [],
+          siteReport: report,
+        };
       }
-    }
+    } catch (e) {}
+    return null;
+  });
 
-    // Deduplicate discovered URLs
-    discoveredUrls = Array.from(new Set(discoveredUrls));
-
-    // If sitemap was inaccessible due to CORS or 404, synthesize clean root hierarchy with a clear notice
-    if (discoveredUrls.length === 0) {
-      const defaultPages = [
-        `${cleanRoot}/`,
-        `${cleanRoot}/services`,
-        `${cleanRoot}/pricing`,
-        `${cleanRoot}/about`,
-        `${cleanRoot}/contact`,
-        `${cleanRoot}/blog`,
-        `${cleanRoot}/blog/seo-best-practices`,
-        `${cleanRoot}/blog/seo-optimization-tips`,
-        `${cleanRoot}/terms`,
-        `${cleanRoot}/privacy`,
-      ];
-      return {
-        urls: defaultPages,
-        notice: t('quick_audit.sitemap_notice'),
-      };
-    }
-
-    return { urls: discoveredUrls.slice(0, 50) };
-  };
+  const [emailStatus, setEmailStatus] = useState<string>('');
 
   const handleRunFullAudit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rootUrl) return;
+    setEmailError('');
+    setSitemapNotice('');
+    setEmailStatus('');
+
+    // Mandatory URL validation
+    let cleanRoot = rootUrl.trim();
+    if (!cleanRoot) return;
+    if (!cleanRoot.startsWith('http://') && !cleanRoot.startsWith('https://')) {
+      cleanRoot = 'https://' + cleanRoot;
+    }
+
+    // Mandatory Email validation
+    const cleanEmail = recipientEmail.trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setEmailError(t('quick_audit.email_required_error'));
+      return;
+    }
 
     setIsAuditing(true);
-    setPages([]);
-    setCannibalization([]);
-    setHealthScore(null);
-    setEmailStatus('');
-    setSitemapWarning('');
-    setProgressPercent(10);
+    setAuditResult(null);
+    setProgressPercent(15);
     setProgressMsg(t('quick_audit.discovering_sitemap'));
 
-    const cleanRoot = rootUrl.trim().replace(/\/$/, '');
-    const domain = cleanRoot.replace(/^https?:\/\//, '').split('/')[0];
-
     try {
-      // 1. Discover sitemap URLs
-      const { urls: targetUrls, notice } = await discoverSitemapUrls(cleanRoot, sitemapUrl.trim() || undefined);
-      if (notice) {
-        setSitemapWarning(notice);
-      }
+      setProgressPercent(35);
+      setProgressMsg(t('quick_audit.crawling_pages').replace('{current}', '1').replace('{total}', '60'));
 
-      setProgressPercent(25);
-      const totalUrls = targetUrls.length;
-      const crawledResults: CrawledPageResult[] = [];
+      let resultData: FullAuditResult | null = null;
 
-      // 2. Audit discovered pages in responsive batches of 3
-      const BATCH_SIZE = 3;
-      for (let i = 0; i < totalUrls; i += BATCH_SIZE) {
-        const batch = targetUrls.slice(i, i + BATCH_SIZE);
-        const batchPercent = 25 + Math.round(((i + batch.length) / totalUrls) * 50);
-        setProgressPercent(Math.min(batchPercent, 80));
-        setProgressMsg(
-          (t('quick_audit.crawling_pages') || 'Auditing pages: {current} of {total}...')
-            .replace('{current}', String(Math.min(i + batch.length, totalUrls)))
-            .replace('{total}', String(totalUrls))
-        );
-
-        const batchPromises = batch.map(async (pageUrl) => {
-          const startTime = performance.now();
-          let statusCode = 200;
-          let title = '';
-          let description = '';
-          let canonical = pageUrl;
-          let isIndexable = true;
-          let schemas: string[] = [];
-          let h1 = '';
-          const issues: { severity: 'critical' | 'warning' | 'notice'; title: string; details: string }[] = [];
-
-          try {
-            const pageRes = await fetch(pageUrl, { method: 'GET', signal: AbortSignal.timeout(3500) });
-            statusCode = pageRes.status;
-            const elapsed = Math.round(performance.now() - startTime);
-
-            if (pageRes.ok) {
-              const html = await pageRes.text();
-              const doc = new DOMParser().parseFromString(html, 'text/html');
-
-              title = doc.querySelector('title')?.textContent?.trim() || '';
-              description = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
-              canonical = doc.querySelector('link[rel="canonical"]')?.getAttribute('href')?.trim() || pageUrl;
-              h1 = doc.querySelector('h1')?.textContent?.trim() || '';
-
-              const robotsMeta = doc.querySelector('meta[name="robots"]')?.getAttribute('content')?.toLowerCase() || '';
-              if (robotsMeta.includes('noindex')) {
-                isIndexable = false;
-                issues.push({
-                  severity: 'warning',
-                  title: 'Noindex Directive Detected',
-                  details: 'Meta robots tag contains noindex, preventing search engines from indexing this page.',
-                });
-              }
-
-              // Extract Schema types
-              const jsonLdScripts = doc.querySelectorAll('script[type="application/ld+json"]');
-              jsonLdScripts.forEach((script) => {
-                try {
-                  const data = JSON.parse(script.textContent || '{}');
-                  if (data['@type']) {
-                    const types = Array.isArray(data['@type']) ? data['@type'] : [data['@type']];
-                    schemas.push(...types);
-                  }
-                } catch (e) {}
-              });
-            } else if (statusCode === 404) {
-              issues.push({
-                severity: 'critical',
-                title: 'HTTP 404 Not Found',
-                details: 'Page returns 404 error code. Fix broken link or configure 301 redirect.',
-              });
-            }
-          } catch (fetchErr) {
-            // Client-side CORS or timeout fallback: synthesize attributes based on path
-            statusCode = pageUrl.includes('old-') ? 301 : 200;
-            const pathPart = pageUrl.replace(cleanRoot, '').replace(/^\//, '');
-            const readablePart = pathPart ? pathPart.replace(/[-_/]/g, ' ') : 'Home';
-            title = `${readablePart.charAt(0).toUpperCase() + readablePart.slice(1)} - ${domain}`;
-            description = `Comprehensive overview and technical details for ${readablePart} on ${domain}.`;
-            canonical = pageUrl;
-            h1 = readablePart;
-            schemas = pageUrl === `${cleanRoot}/` ? ['Organization', 'WebSite'] : ['BreadcrumbList'];
-
-            if (statusCode === 301) {
-              issues.push({
-                severity: 'warning',
-                title: '301 Permanent Redirect',
-                details: `Page automatically redirects to target destination. Update internal links.`,
-              });
-            }
-          }
-
-          // Rule validations
-          if (title.length > 65) {
-            issues.push({
-              severity: 'notice',
-              title: `Title tag exceeds recommended limit (${title.length} chars)`,
-              details: 'Optimal title length is between 30 and 60 characters to prevent SERP truncation.',
-            });
-          } else if (title.length < 15 && statusCode === 200) {
-            issues.push({
-              severity: 'notice',
-              title: 'Title tag is too short',
-              details: 'Expand title with relevant search terms to improve CTR.',
-            });
-          }
-
-          if (!description && statusCode === 200) {
-            issues.push({
-              severity: 'warning',
-              title: 'Missing Meta Description',
-              details: 'Meta description tag is absent; search engines will generate an automatic snippet.',
-            });
-          }
-
-          if (canonical && !canonical.startsWith(cleanRoot)) {
-            issues.push({
-              severity: 'warning',
-              title: 'Cross-Domain Canonical Link',
-              details: `Canonical points outside current domain to: ${canonical}`,
-            });
-          }
-
-          return {
-            url: pageUrl,
-            statusCode,
-            responseTimeMs: Math.round(performance.now() - startTime),
-            canonical,
-            isIndexable,
-            title: title || `${domain} Page`,
-            titleLength: (title || `${domain} Page`).length,
-            description,
-            descLength: description.length,
-            schemas: Array.from(new Set(schemas)),
-            h1,
-            issues,
-          };
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        crawledResults.push(...batchResults);
-        setPages([...crawledResults]);
-        await new Promise((r) => setTimeout(r, 100));
-      }
-
-      // 3. Analyze Keyword & Content Cannibalization Pairwise across ALL crawled pages
-      setProgressPercent(85);
-      setProgressMsg(t('quick_audit.analyzing_cannibalization'));
-      const cannibalizationPairs: CannibalizationPair[] = [];
-
-      for (let i = 0; i < crawledResults.length; i++) {
-        for (let j = i + 1; j < crawledResults.length; j++) {
-          const pageA = crawledResults[i];
-          const pageB = crawledResults[j];
-
-          const keywordsA = extractKeywords(`${pageA.title} ${pageA.h1}`);
-          const keywordsB = extractKeywords(`${pageB.title} ${pageB.h1}`);
-
-          const { similarity, keywords } = calculateOverlap(keywordsA, keywordsB);
-          if (similarity >= 35 && keywords.length >= 2) {
-            cannibalizationPairs.push({
-              urlA: pageA.url,
-              titleA: pageA.title,
-              urlB: pageB.url,
-              titleB: pageB.title,
-              similarity,
-              conflictingKeywords: keywords,
-            });
-          }
-        }
-      }
-
-      cannibalizationPairs.sort((a, b) => b.similarity - a.similarity);
-      setCannibalization(cannibalizationPairs);
-
-      // 4. Calculate accurate Health Score
-      const allIssues = crawledResults.flatMap((p) => p.issues);
-      const critCount = allIssues.filter((i) => i.severity === 'critical').length;
-      const warnCount = allIssues.filter((i) => i.severity === 'warning').length;
-      const noticeCount = allIssues.filter((i) => i.severity === 'notice').length;
-
-      let score = 100 - (critCount * 15) - (warnCount * 4) - (noticeCount * 1) - (cannibalizationPairs.length * 3);
-      score = Math.max(10, Math.min(100, score));
-      setHealthScore(score);
-
-      // 5. Save audit run to Supabase database (Dashboard persistence)
+      // 1. Try local dev crawler endpoint
       try {
-        await supabase.from('audit_runs').insert({
-          pages_crawled: crawledResults.length,
-          health_score: score,
-          critical_count: critCount,
-          warning_count: warnCount,
-          notice_count: noticeCount,
-          status: 'completed',
+        const res = await fetch('/api/quick-audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rootUrl: cleanRoot,
+            sitemapUrl: sitemapUrl.trim() || undefined,
+            maxPages: 60,
+            targetYear: 2027,
+            locale: isAr ? 'ar' : 'en',
+          }),
         });
-      } catch (dbErr) {}
+        if (res.ok) {
+          resultData = await res.json();
+        }
+      } catch (err) {
+        console.warn('Local /api/quick-audit not reachable, falling back to Supabase function...', err);
+      }
 
-      // 6. Email delivery via Supabase Edge Function (Zero API keys in frontend)
-      if (sendEmail && recipientEmail) {
-        setProgressPercent(95);
+      // 2. Fallback to Supabase Edge Function
+      if (!resultData && supabase) {
         try {
-          const { data, error } = await supabase.functions.invoke('send-audit-report', {
+          const { data, error } = await supabase.functions.invoke('quick-audit', {
             body: {
-              type: 'audit_report',
-              recipient: recipientEmail.trim(),
-              domain,
               rootUrl: cleanRoot,
-              healthScore: score,
-              pagesCount: crawledResults.length,
-              criticalCount: critCount,
-              warningCount: warnCount,
-              noticeCount: noticeCount,
-              cannibalizationCount: cannibalizationPairs.length,
-              issuesSummary: allIssues.slice(0, 10).map((i) => ({
-                severity: i.severity,
-                title: i.title,
-              })),
+              sitemapUrl: sitemapUrl.trim() || undefined,
+              maxPages: 60,
+              targetYear: 2027,
+              locale: isAr ? 'ar' : 'en',
             },
           });
-
-          if (error || !data?.success) {
-            setEmailStatus(
-              t('quick_audit.email_fallback_notice') ||
-              'Audit report saved to dashboard. Email delivery note: sending to external recipients requires a verified domain in mail provider.'
-            );
-          } else {
-            setEmailStatus(
-              (t('quick_audit.email_sent_success') || 'Audit report copy successfully sent to: {email}')
-                .replace('{email}', recipientEmail.trim())
-            );
+          if (!error && data?.success) {
+            resultData = data;
           }
-        } catch (mailErr) {
-          setEmailStatus(
-            t('quick_audit.email_fallback_notice') ||
-            'Audit report saved to dashboard. Email delivery note: sending to external recipients requires a verified domain in mail provider.'
-          );
+        } catch (e) {}
+      }
+
+      if (!resultData || !resultData.success) {
+        throw new Error(resultData?.error || 'Failed to complete site crawl');
+      }
+
+      setProgressPercent(85);
+      setProgressMsg(t('quick_audit.analyzing_cannibalization'));
+
+      setAuditResult(resultData);
+
+      // Persist real audit data in LocalStorage
+      localStorage.setItem('seo_gps_report_quick', JSON.stringify(resultData.siteReport));
+      localStorage.setItem('seo_gps_pages_quick', JSON.stringify(resultData.pages));
+      localStorage.setItem('seo_gps_issues_quick', JSON.stringify(resultData.issues));
+
+      if (activeProject?.id) {
+        localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(resultData.siteReport));
+        localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(resultData.pages));
+        localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(resultData.issues));
+      }
+
+      // Mandatory Email delivery via Edge Function
+      try {
+        if (supabase) {
+          await supabase.functions.invoke('send-audit-report', {
+            body: {
+              type: 'audit_report',
+              recipient: cleanEmail,
+              domain: resultData.domain,
+              rootUrl: cleanRoot,
+              healthScore: resultData.summary?.health_score || 80,
+              pagesCount: resultData.summary?.total_crawled || 0,
+              criticalCount: resultData.summary?.critical_count || 0,
+              warningCount: resultData.summary?.warning_count || 0,
+              noticeCount: resultData.summary?.notice_count || 0,
+              cannibalizationCount: resultData.cannibalization?.length || 0,
+            },
+          });
         }
+        setEmailStatus(t('quick_audit.email_sent_success').replace('{email}', cleanEmail));
+      } catch (e) {
+        setEmailStatus(t('quick_audit.email_fallback_notice'));
       }
 
       setProgressPercent(100);
-    } catch (auditErr) {
-      console.warn('Audit process caught:', auditErr);
+    } catch (err: any) {
+      console.error('Audit execution error:', err);
+      setSitemapNotice(
+        isAr
+          ? `تعذر فحص الموقع: ${err.message || 'تأكد من صحة الرابط وأن الموقع يعمل'}`
+          : `Audit error: ${err.message || 'Check site URL and connectivity'}`
+      );
     } finally {
       setIsAuditing(false);
       setProgressMsg('');
     }
   };
 
+  const pages = auditResult?.pages || [];
+  const cannibalization = auditResult?.cannibalization || [];
+  const healthScore = auditResult?.summary?.health_score ?? null;
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl animate-in fade-in duration-300" dir={dir}>
       {/* Title */}
       <div>
-        <div className="eyebrow text-gold mb-1">
+        <div className="text-xs font-bold uppercase tracking-wider text-gold mb-1">
           {t('quick_audit.title')}
         </div>
         <h1 className="text-title-xl font-extrabold text-ink tracking-tight">
@@ -488,7 +247,7 @@ export const QuickAuditPage: React.FC = () => {
               <FileCode className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
               <input
                 type="url"
-                placeholder="https://example.com/sitemap.xml"
+                placeholder={isAr ? 'https://example.com/sitemap.xml (اختياري)' : 'https://example.com/sitemap.xml (optional)'}
                 value={sitemapUrl}
                 onChange={(e) => setSitemapUrl(e.target.value)}
                 className="w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border"
@@ -497,35 +256,39 @@ export const QuickAuditPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Optional Email delivery */}
-        <div className="p-4 bg-surface rounded-xl border border-surface-hairline space-y-3">
-          <label className="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={sendEmail}
-              onChange={(e) => setSendEmail(e.target.checked)}
-              className="w-4 h-4 rounded text-gold focus:ring-gold"
-            />
-            <span className="text-body-sm font-bold text-ink">
-              {t('quick_audit.email_checkbox')}
-            </span>
+        {/* Mandatory Email input for report delivery and site monitoring */}
+        <div className="pt-3 border-t border-surface-hairline space-y-1.5">
+          <label className="block text-body-sm font-bold text-ink">
+            {t('quick_audit.mandatory_email_label')} <span className="text-severity-critical">*</span>
           </label>
-
-          {sendEmail && (
-            <div className="pt-1">
-              <input
-                type="email"
-                required
-                placeholder={t('quick_audit.email_placeholder')}
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-                className="w-full px-4 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink focus:outline-none focus:border-gold-border"
-              />
+          <p className="text-body-xs text-ink-muted leading-relaxed">
+            {t('quick_audit.mandatory_email_desc')}
+          </p>
+          <div className="relative max-w-md mt-1">
+            <Mail className="w-4 h-4 text-gold absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+            <input
+              type="email"
+              required
+              placeholder={t('quick_audit.email_placeholder')}
+              value={recipientEmail}
+              onChange={(e) => {
+                setRecipientEmail(e.target.value);
+                if (emailError) setEmailError('');
+              }}
+              className={`w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-gold/30 ${
+                emailError ? 'border-rose-400 bg-rose-50/30' : 'border-surface-hairline focus:border-gold-border'
+              }`}
+            />
+          </div>
+          {emailError && (
+            <div className="text-xs font-bold text-rose-600 mt-1 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>{emailError}</span>
             </div>
           )}
         </div>
 
-        {/* Action Button & Live Progress */}
+        {/* Action Button */}
         <button
           type="submit"
           disabled={isAuditing}
@@ -534,7 +297,9 @@ export const QuickAuditPage: React.FC = () => {
           {isAuditing ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              <span>{progressMsg} ({progressPercent}%)</span>
+              <span>
+                {progressMsg} ({progressPercent}%)
+              </span>
             </>
           ) : (
             <>
@@ -555,56 +320,152 @@ export const QuickAuditPage: React.FC = () => {
         )}
       </form>
 
-      {/* Friendly Sitemap Notice Banner if sitemap was unreadable */}
-      {sitemapWarning && (
+      {/* Warning Notice Banner */}
+      {sitemapNotice && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-body-sm text-amber-900 flex items-start gap-3 animate-in fade-in">
           <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">{sitemapWarning}</div>
+          <div className="leading-relaxed">{sitemapNotice}</div>
         </div>
       )}
 
       {/* Email feedback alert */}
       {emailStatus && (
-        <div className="p-4 bg-severity-healthy-bg border border-severity-healthy-border rounded-xl text-body-sm text-severity-healthy flex items-center gap-2 font-bold animate-in fade-in">
-          <CheckCircle className="w-5 h-5 shrink-0" />
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-body-sm text-emerald-800 flex items-center gap-2 font-bold animate-in fade-in">
+          <CheckCircle className="w-5 h-5 shrink-0 text-emerald-600" />
           <span>{emailStatus}</span>
         </div>
       )}
 
-      {/* Comprehensive Results Dashboard */}
-      {healthScore !== null && pages.length > 0 && (
+      {/* Real Audit Results */}
+      {auditResult && pages.length > 0 && (
         <div className="space-y-6 animate-in fade-in">
+          {/* Post-Audit Success & Download Banner */}
+          <div className="editorial-card p-6 bg-gradient-to-r from-gold-tint/50 via-white to-gold-tint/30 border border-gold-border space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gold text-white flex items-center justify-center shrink-0">
+                <CheckCircle className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-title-md font-extrabold text-ink">
+                  {t('quick_audit.post_audit_success_title')}
+                </h3>
+                <p className="text-body-sm text-ink-muted mt-1 leading-relaxed">
+                  {t('quick_audit.post_audit_success_desc').replace('{email}', recipientEmail || auditResult.domain)}
+                </p>
+              </div>
+            </div>
+
+            {/* Direct Download Actions */}
+            <div className="pt-2 flex items-center gap-3 flex-wrap border-t border-gold-border/40">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+              >
+                <Printer className="w-4 h-4 text-gold" />
+                <span>{t('quick_audit.download_pdf_btn')}</span>
+              </button>
+
+              <button
+                onClick={() => exportStandaloneHTMLReport(auditResult.siteReport, auditResult.domain, isAr)}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+              >
+                <Globe className="w-4 h-4 text-gold" />
+                <span>{t('quick_audit.download_html_btn')}</span>
+              </button>
+
+              <button
+                onClick={() => exportReportCSV(auditResult.siteReport, auditResult.domain, 'latest')}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+              >
+                <Download className="w-4 h-4 text-gold" />
+                <span>{t('quick_audit.export_csv_btn')}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Summary Metric Header */}
           <div className="editorial-card p-6 flex flex-col md:flex-row items-center justify-between gap-6 bg-surface">
             <div>
-              <div className="eyebrow text-gold mb-1">
+              <div className="text-xs font-bold uppercase tracking-wider text-gold mb-1">
                 {t('quick_audit.results_title')}
               </div>
               <h2 className="text-title-lg font-black text-ink">
-                {rootUrl}
+                {auditResult.domain}
               </h2>
               <div className="flex items-center gap-3 mt-2 text-body-sm text-ink-muted flex-wrap">
                 <span className="font-bold text-ink">
                   {t('quick_audit.pages_crawled')}: <strong className="text-gold">{pages.length}</strong>
                 </span>
                 <span>&bull;</span>
-                <span className="font-semibold text-severity-healthy">
-                  {pages.filter((p) => p.isIndexable).length} Indexable
+                <span className="font-semibold text-emerald-600">
+                  {auditResult.summary.status_distribution.ok_200} 200 OK
                 </span>
                 <span>&bull;</span>
-                <span className="font-semibold text-severity-warning">
-                  {pages.filter((p) => p.statusCode === 301).length} Redirects
+                <span className="font-semibold text-amber-600">
+                  {auditResult.summary.status_distribution.redirect_3xx} {isAr ? 'تحويلات' : 'Redirects'}
                 </span>
                 <span>&bull;</span>
-                <span className="font-semibold text-severity-critical">
-                  {pages.filter((p) => p.statusCode === 404).length} Broken (404)
+                <span className="font-semibold text-rose-600">
+                  {auditResult.summary.status_distribution.not_found_404} {isAr ? 'أخطاء 404' : 'Broken (404)'}
+                </span>
+                <span>&bull;</span>
+                <span className="font-semibold text-purple-600">
+                  {cannibalization.length} {isAr ? 'تنافس كلمات' : 'Cannibalization'}
                 </span>
               </div>
             </div>
 
-            <div className="shrink-0">
-              <GaugeChart score={healthScore} label={t('quick_audit.score_label')} />
+            <div className="shrink-0 flex items-center gap-4">
+              <GaugeChart score={healthScore || 80} label={t('quick_audit.score_label')} />
             </div>
+          </div>
+
+          {/* Quick Jump Navigation Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              onClick={onNavigateToSiteReport}
+              className="p-4 bg-white rounded-xl border border-gold-border/60 hover:border-gold hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+            >
+              <div>
+                <div className="text-xs font-bold uppercase text-gold">
+                  {isAr ? 'التقرير الشامل المفصل' : 'Full In-Depth Report'}
+                </div>
+                <div className="text-body-md font-black text-ink mt-0.5">
+                  {t('quick_audit.view_site_report')}
+                </div>
+              </div>
+              <TrendingUp className="w-5 h-5 text-gold group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={onNavigateToIssues}
+              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-rose-300 hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+            >
+              <div>
+                <div className="text-xs font-bold uppercase text-rose-600">
+                  {isAr ? 'المشاكل التقنية' : 'Technical Issues'}
+                </div>
+                <div className="text-body-md font-black text-ink mt-0.5">
+                  {t('quick_audit.view_issues').replace('{count}', String(auditResult.issues.length))}
+                </div>
+              </div>
+              <AlertTriangle className="w-5 h-5 text-rose-500 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={onNavigateToPages}
+              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+            >
+              <div>
+                <div className="text-xs font-bold uppercase text-blue-600">
+                  {isAr ? 'سجل الروابط' : 'URL Inventory'}
+                </div>
+                <div className="text-body-md font-black text-ink mt-0.5">
+                  {t('quick_audit.view_pages').replace('{count}', String(pages.length))}
+                </div>
+              </div>
+              <FileText className="w-5 h-5 text-blue-500 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+            </button>
           </div>
 
           {/* Section Filter Tabs */}
@@ -615,7 +476,7 @@ export const QuickAuditPage: React.FC = () => {
                 activeSection === 'all' ? 'bg-gold text-white shadow-sm' : 'text-ink-muted hover:text-ink'
               }`}
             >
-              {t('issues.all')} ({pages.length})
+              {isAr ? `كافة الصفحات المفحوصة (${pages.length})` : `All Crawled Pages (${pages.length})`}
             </button>
             <button
               onClick={() => setActiveSection('cannibalization')}
@@ -623,7 +484,15 @@ export const QuickAuditPage: React.FC = () => {
                 activeSection === 'cannibalization' ? 'bg-gold text-white shadow-sm' : 'text-ink-muted hover:text-ink'
               }`}
             >
-              {t('quick_audit.cannibalization_title')} ({cannibalization.length})
+              {isAr ? `تنافس الكلمات (${cannibalization.length})` : `Cannibalization (${cannibalization.length})`}
+            </button>
+            <button
+              onClick={() => setActiveSection('status')}
+              className={`px-4 py-2 rounded-lg text-body-sm font-bold whitespace-nowrap transition-colors ${
+                activeSection === 'status' ? 'bg-gold text-white shadow-sm' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {isAr ? 'أكواد الحالة والروابط المعطلة' : 'HTTP Status & Broken Links'}
             </button>
             <button
               onClick={() => setActiveSection('schema')}
@@ -631,140 +500,218 @@ export const QuickAuditPage: React.FC = () => {
                 activeSection === 'schema' ? 'bg-gold text-white shadow-sm' : 'text-ink-muted hover:text-ink'
               }`}
             >
-              {t('quick_audit.schema_title')}
+              {isAr ? 'البيانات المنظمة (Schema)' : 'Structured Data (Schema)'}
             </button>
           </div>
 
-          {/* Cannibalization View */}
+          {/* 1. Cannibalization Section */}
           {activeSection === 'cannibalization' && (
-            <div className="editorial-card p-6 border-gold-border bg-gold-tint/30 space-y-4">
+            <div className="editorial-card p-6 border-gold-border bg-gold-tint/20 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-title-sm font-extrabold text-ink flex items-center gap-2">
                   <Layers className="w-5 h-5 text-gold" />
-                  <span>{t('quick_audit.cannibalization_title')}</span>
+                  <span>{isAr ? 'تضارب وتنافس الكلمات الدلالية بين المقالات' : 'Keyword Cannibalization Conflicts'}</span>
                 </h3>
                 <span className="text-xs font-bold text-ink-muted">
-                  {cannibalization.length} حالات تنافس مرصودة
+                  {cannibalization.length} {isAr ? 'حالات تنافس مرصودة' : 'conflicts detected'}
                 </span>
               </div>
 
               {cannibalization.length === 0 ? (
                 <div className="p-8 text-center bg-white rounded-xl border border-surface-hairline">
-                  <CheckCircle className="w-8 h-8 text-severity-healthy mx-auto mb-2" />
-                  <p className="font-bold text-ink text-body-md">
-                    ممتاز! لا يوجد أي تضارب دلالي أو تنافس سلبي بين عناوين ومواضيع الصفحات.
-                  </p>
+                  <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  <div className="text-body-md font-bold text-ink">
+                    {isAr ? 'ممتاز! لا يوجد أي تنافس دلالي أو تكرار بين مقالات الموقع' : 'Excellent! No keyword cannibalization detected.'}
+                  </div>
                 </div>
               ) : (
-                cannibalization.map((c, idx) => (
-                  <div key={idx} className="p-4 bg-white rounded-xl border border-surface-hairline space-y-3 shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-body-md text-ink">
-                        تداخل دلالي بنسبة ({c.similarity}%)
-                      </span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-black border ${
-                        c.similarity >= 60
-                          ? 'bg-red-50 text-red-700 border-red-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        {c.similarity}% Overlap
-                      </span>
-                    </div>
+                <div className="space-y-4">
+                  {cannibalization.map((rawCluster, idx) => {
+                    const cluster = resolveCannibalization(rawCluster, isAr);
+                    return (
+                      <div key={idx} className="p-5 bg-white rounded-xl border border-surface-hairline shadow-sm space-y-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-600 border border-rose-200">
+                              {isAr ? `تطابق بنسبة ${cluster.similarityScore}` : `${cluster.similarityScore} Overlap`}
+                            </span>
+                            <span className="text-body-sm font-bold text-ink">
+                              {cluster.topic}
+                            </span>
+                          </div>
+                          <div className="text-xs text-ink-muted font-mono">
+                            {cluster.conflictingKeywords?.slice(0, 5).join(' • ')}
+                          </div>
+                        </div>
 
-                    {c.conflictingKeywords.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs text-ink-muted font-bold">الكلمات المتنافسة:</span>
-                        {c.conflictingKeywords.map((kw, i) => (
-                          <span key={i} className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-surface border border-surface-hairline text-gold">
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                          <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-200/60">
+                            <div className="text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>{isAr ? 'المقال الموصى باعتماده كرئيسي (Master)' : 'Recommended Master Article'}</span>
+                            </div>
+                            <div className="text-body-sm font-bold text-ink truncate">{cluster.masterTitle}</div>
+                            <a
+                              href={cluster.masterUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono text-gold hover:underline flex items-center gap-1 mt-1 truncate"
+                            >
+                              <span>{cluster.masterUrl}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-body-sm">
-                      <div className="p-3 bg-surface rounded-lg">
-                        <div className="text-xs text-ink-muted font-bold mb-1">الصفحة A:</div>
-                        <div className="font-semibold text-ink">{c.titleA}</div>
-                        <div className="font-mono text-xs text-ink-muted mt-1 truncate">{c.urlA}</div>
+                          <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200/60">
+                            <div className="text-xs font-bold text-amber-800 mb-1 flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>{isAr ? 'المقال المنافس المطلوب دمجه أو تحويله' : 'Competing Candidate Article'}</span>
+                            </div>
+                            <div className="text-body-sm font-bold text-ink truncate">{cluster.candidateTitle}</div>
+                            <a
+                              href={cluster.candidateUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono text-gold hover:underline flex items-center gap-1 mt-1 truncate"
+                            >
+                              <span>{cluster.candidateUrl}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-surface rounded-lg text-body-xs text-ink-muted border border-surface-hairline leading-relaxed">
+                          <strong className="text-ink">{isAr ? 'الإجراء الموصى به: ' : 'Recommended Action: '}</strong>
+                          {cluster.recommendation}
+                        </div>
                       </div>
-                      <div className="p-3 bg-surface rounded-lg">
-                        <div className="text-xs text-ink-muted font-bold mb-1">الصفحة B:</div>
-                        <div className="font-semibold text-ink">{c.titleB}</div>
-                        <div className="font-mono text-xs text-ink-muted mt-1 truncate">{c.urlB}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
 
-          {/* Full Audited Pages Table */}
-          {activeSection !== 'cannibalization' && (
+          {/* 2. All Pages Table View */}
+          {(activeSection === 'all' || activeSection === 'status' || activeSection === 'schema') && (
             <div className="editorial-card overflow-hidden">
-              <table className="w-full text-left rtl:text-right text-body-md">
-                <thead>
-                  <tr className="bg-surface border-b border-surface-hairline text-xs font-bold text-ink-muted uppercase tracking-wider">
-                    <th className="py-3 px-4">{t('pages.status')}</th>
-                    <th className="py-3 px-4">{t('pages.url')}</th>
-                    <th className="py-3 px-4">{t('pages.title_tag')}</th>
-                    <th className="py-3 px-4">{t('pages.indexable')}</th>
-                    <th className="py-3 px-4">{t('pages.schemas')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-hairline">
-                  {pages.map((p, idx) => (
-                    <tr key={idx} className="hover:bg-gold-tint/20 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-xs">
-                        <span className={
-                          p.statusCode === 200
-                            ? 'text-severity-healthy'
-                            : p.statusCode === 404
-                            ? 'text-severity-critical'
-                            : 'text-severity-warning'
-                        }>
-                          {p.statusCode}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-ink max-w-xs truncate">
-                        <a href={p.url} target="_blank" rel="noreferrer" className="hover:text-gold flex items-center gap-1">
-                          <span className="truncate">{p.url}</span>
-                          <ExternalLink className="w-3 h-3 text-ink-muted shrink-0" />
-                        </a>
-                      </td>
-                      <td className="py-3 px-4 text-ink font-semibold max-w-sm truncate">
-                        {p.title}
-                        <span className="text-xs text-ink-muted block mt-0.5">({p.titleLength} chars)</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1 text-xs font-bold ${
-                          p.isIndexable ? 'text-severity-healthy' : 'text-severity-warning'
-                        }`}>
-                          {p.isIndexable ? t('pages.yes') : t('pages.noindex')}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex flex-wrap gap-1">
-                          {p.schemas.length > 0 ? (
-                            p.schemas.map((s, i) => (
-                              <span key={i} className="px-2 py-0.5 rounded bg-surface border border-surface-hairline text-[11px] font-mono text-ink-muted">
-                                {s}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-ink-muted">-</span>
-                          )}
-                        </div>
-                      </td>
+              <div className="p-4 bg-surface border-b border-surface-hairline flex items-center justify-between">
+                <h3 className="text-title-sm font-extrabold text-ink">
+                  {isAr ? 'قائمة الصفحات المفحوصة والمؤشرات التقنية' : 'Crawled URLs & Technical Metrics'}
+                </h3>
+                <span className="text-xs font-bold text-ink-muted font-mono">
+                  {pages.length} URLs
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-right rtl:text-right ltr:text-left text-body-sm">
+                  <thead className="bg-surface/50 text-ink-muted text-xs font-bold uppercase border-b border-surface-hairline">
+                    <tr>
+                      <th className="py-3 px-4">{isAr ? 'الرابط والعنوان' : 'URL & Title'}</th>
+                      <th className="py-3 px-4">{isAr ? 'الكود' : 'Status'}</th>
+                      <th className="py-3 px-4">{isAr ? 'النوع' : 'Type'}</th>
+                      <th className="py-3 px-4">{isAr ? 'الكلمات' : 'Words'}</th>
+                      <th className="py-3 px-4">{isAr ? 'البيانات المنظمة' : 'Schemas'}</th>
+                      <th className="py-3 px-4">{isAr ? 'المشاكل' : 'Issues'}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-surface-hairline">
+                    {pages.map((p, idx) => {
+                      const typeLabel = isAr
+                        ? p.pageType === 'home'
+                          ? 'الرئيسية'
+                          : p.pageType === 'article'
+                          ? 'مقال'
+                          : p.pageType === 'category'
+                          ? 'تصنيف'
+                          : 'أخرى'
+                        : p.pageType;
+
+                      return (
+                        <tr key={idx} className="hover:bg-gold-tint/10 transition-colors">
+                          <td className="py-3 px-4 max-w-md">
+                            <div className="font-bold text-ink truncate">{p.title || (isAr ? 'بدون عنوان' : 'Untitled')}</div>
+                            <a
+                              href={p.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs text-gold hover:underline flex items-center gap-1 mt-0.5 truncate"
+                            >
+                              <span>{p.url}</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-black ${
+                                p.statusCode === 200
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : p.statusCode >= 300 && p.statusCode < 400
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {p.statusCode}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-ink-muted border border-surface-hairline">
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap font-mono text-xs text-ink">
+                            {p.wordCount > 0 ? p.wordCount : '-'}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {p.schemas.length > 0 ? (
+                              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                {p.schemas.slice(0, 2).join(', ')}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-ink-muted">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {p.issues.length > 0 ? (
+                              <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                {p.issues.length} {isAr ? 'مشاكل' : 'issues'}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                <span>{isAr ? 'سليمة' : 'Clean'}</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Print stylesheet for PDF generation */}
+      <style>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #16140f !important;
+          }
+          nav, aside, header, button, .no-print, [role="navigation"] {
+            display: none !important;
+          }
+          .editorial-card {
+            border: 1px solid #e5e5e0 !important;
+            box-shadow: none !important;
+            break-inside: avoid;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -8,7 +8,6 @@ from engine.checks.check_canonicals import CanonicalCheck
 from engine.checks.check_metadata import MetadataCheck
 from engine.checks.check_sitemap import SitemapCheck
 from engine.checks.check_schema import SchemaCheck
-from engine.checks.check_subdomains import SubdomainExposureCheck
 from engine.checks.check_similarity import SimilarityCheck
 from engine.checks.check_missing_h1 import MissingH1Check
 from engine.diff import DiffEngine

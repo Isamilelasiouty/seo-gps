@@ -47,12 +47,23 @@ jobs:
           if url and key:
               headers = {"apikey": key, "Authorization": f"Bearer {key}"}
               if single_id:
-                  resp = httpx.get(f"{url}/rest/v1/projects?id=eq.{single_id}&select=*", headers=headers)
+                  resp = httpx.get(f"{url}/rest/v1/projects?id=eq.{single_id}&select=*,project_settings(*)", headers=headers)
               else:
                   # Hourly selection query
-                  resp = httpx.get(f"{url}/rest/v1/projects?status=eq.active&select=*", headers=headers)
+                  resp = httpx.get(f"{url}/rest/v1/projects?status=eq.active&select=*,project_settings(*)", headers=headers)
               if resp.status_code == 200:
-                  projects = resp.json()
+                  raw_projects = resp.json()
+                  for p in raw_projects:
+                      settings = p.get("project_settings")
+                      recipients = []
+                      if isinstance(settings, list) and len(settings) > 0:
+                          recipients = settings[0].get("recipient_emails", [])
+                      elif isinstance(settings, dict):
+                          recipients = settings.get("recipient_emails", [])
+                      if p.get("recipient_email") and p["recipient_email"] not in recipients:
+                          recipients.append(p["recipient_email"])
+                      p["recipients"] = recipients
+                      projects.append(p)
           
           # Output for matrix
           has_projects = "true" if projects else "false"
@@ -88,5 +99,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PROJECT_DATA: ${{ toJson(matrix.project) }}
         run: |
           python -m engine.main

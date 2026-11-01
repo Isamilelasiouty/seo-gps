@@ -1,0 +1,16 @@
+{
+  "name": "seo-gps-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "SEO GPS by Ismail El Asiouty - Automated SEO Regression & First-Scan Baseline Monitoring",
+  "scripts": {
+    "local": "npm --prefix frontend run dev",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "pytest",
+    "test:engine": "pytest",
+    "test:frontend": "npm --prefix frontend run build",
+    "scan:baseline": "python -m engine.local_runner --start",
+    "simulate:day2": "python -m engine.local_runner --simulate-day +1"
+  }
+}

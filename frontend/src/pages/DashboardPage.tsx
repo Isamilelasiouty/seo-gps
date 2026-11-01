@@ -19,6 +19,7 @@ import { ProjectData } from '../components/EditProjectModal';
 
 interface DashboardPageProps {
   onNavigateToIssues: () => void;
+  onNavigateToSiteReport?: () => void;
   onOpenAddProject: () => void;
   activeProject: ProjectData | null;
   onEditProject: () => void;
@@ -27,12 +28,13 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToIssues,
+  onNavigateToSiteReport,
   onOpenAddProject,
   activeProject,
   onEditProject,
   onRunInstantAnalysis,
 }) => {
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
   const [timeRange, setTimeRange] = useState<'7d' | '28d' | '90d'>('28d');
   const [selectedMetric, setSelectedMetric] = useState<string>('critical');
   const [isRunningCrawl, setIsRunningCrawl] = useState(false);
@@ -95,7 +97,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const isAudited = Boolean(activeProject.last_run_at);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* 1. Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -287,6 +289,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Interactive Site Report Quick Link */}
+          <div className="bg-gold-tint/40 border border-gold-border rounded-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold text-gold uppercase tracking-wider">{t('dashboard.telemetry_eyebrow')}</span>
+              <h3 className="text-title-sm font-extrabold text-ink mt-0.5">
+                {t('dashboard.telemetry_title')}
+              </h3>
+              <p className="text-body-sm text-ink-muted">
+                {t('dashboard.telemetry_desc')}
+              </p>
+            </div>
+            {onNavigateToSiteReport && (
+              <button
+                onClick={onNavigateToSiteReport}
+                className="px-5 py-2.5 rounded-xl bg-gold text-white font-extrabold text-body-sm hover:bg-gold-hover shadow-sm transition-all flex items-center gap-2 whitespace-nowrap self-start sm:self-center"
+              >
+                <span>{t('dashboard.open_site_report')}</span>
+                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+              </button>
+            )}
           </div>
 
           {/* Changes Today Section */}

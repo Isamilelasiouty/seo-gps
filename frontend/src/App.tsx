@@ -13,7 +13,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { QuickAuditPage } from './pages/QuickAuditPage';
 import { IssuesPage } from './pages/IssuesPage';
 import { PagesExplorerPage } from './pages/PagesExplorerPage';
-import { GenericCheckPage } from './pages/GenericCheckPage';
+import { SiteReportPage } from './pages/SiteReportPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
@@ -148,7 +148,7 @@ export const AppContent: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, project_settings(*)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
@@ -159,18 +159,23 @@ export const AppContent: React.FC = () => {
 
       if (data && data.length > 0) {
         const clean = data.filter((d: any) => d.domain !== 'example.com' && d.id !== 'p-default');
-        const formatted: ProjectData[] = clean.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          domain: d.domain,
-          root_url: d.root_url,
-          sitemap_url: d.sitemap_url,
-          daily_crawl_hour: d.daily_crawl_hour,
-          timezone: d.timezone,
-          frequency: 'daily',
-          health_score: d.health_score || undefined,
-          last_run_at: d.last_run_at || undefined,
-        }));
+        const formatted: ProjectData[] = clean.map((d: any) => {
+          const settings = Array.isArray(d.project_settings) ? d.project_settings[0] : d.project_settings;
+          const recEmail = d.recipient_email || settings?.recipient_emails?.[0] || '';
+          return {
+            id: d.id,
+            name: d.name,
+            domain: d.domain,
+            root_url: d.root_url,
+            sitemap_url: d.sitemap_url,
+            daily_crawl_hour: d.daily_crawl_hour,
+            timezone: d.timezone,
+            recipient_email: recEmail,
+            frequency: 'daily',
+            health_score: d.health_score || undefined,
+            last_run_at: d.last_run_at || undefined,
+          };
+        });
         setProjects(formatted);
 
         const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
@@ -207,6 +212,16 @@ export const AppContent: React.FC = () => {
             ...newProj,
             id: data.id,
           };
+          if (newProj.recipient_email) {
+            try {
+              await supabase.from('project_settings').insert({
+                project_id: data.id,
+                recipient_emails: [newProj.recipient_email.trim()],
+              });
+            } catch (err) {
+              console.warn('Could not save project_settings:', err);
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to insert project into Supabase:', err);
@@ -233,6 +248,17 @@ export const AppContent: React.FC = () => {
             timezone: updatedProject.timezone,
           })
           .eq('id', updatedProject.id);
+
+        if (updatedProject.recipient_email) {
+          try {
+            await supabase.from('project_settings').upsert({
+              project_id: updatedProject.id,
+              recipient_emails: [updatedProject.recipient_email.trim()],
+            });
+          } catch (err) {
+            console.warn('Could not upsert project_settings:', err);
+          }
+        }
       } catch (err) {
         console.error('Failed to update project in Supabase:', err);
       }
@@ -264,30 +290,54 @@ export const AppContent: React.FC = () => {
   const handleRunInstantAnalysis = async () => {
     if (!activeProject) return;
 
-    const nowIso = new Date().toISOString();
-    const updatedProj: ProjectData = {
-      ...activeProject,
-      last_run_at: nowIso,
-      health_score: 96,
-    };
+    try {
+      const isAr = (localStorage.getItem('seo_gps_locale') as any) !== 'en';
+      const res = await fetch('/api/quick-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rootUrl: activeProject.root_url,
+          sitemapUrl: activeProject.sitemap_url || undefined,
+          maxPages: 60,
+          targetYear: 2027,
+          locale: isAr ? 'ar' : 'en',
+        }),
+      });
 
-    if (currentUser && !activeProject.id.startsWith('proj-') && activeProject.id !== 'p-default') {
-      try {
-        await supabase
-          .from('projects')
-          .update({
-            last_run_at: nowIso,
-            health_score: 96,
-          })
-          .eq('id', activeProject.id);
-      } catch (err) {
-        console.error('Failed to update run status in Supabase:', err);
+      if (res.ok) {
+        const result = await res.json();
+        const score = result.summary.health_score;
+        const nowIso = new Date().toISOString();
+
+        const updatedProj: ProjectData = {
+          ...activeProject,
+          last_run_at: nowIso,
+          health_score: score,
+        };
+
+        localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(result.siteReport));
+        localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(result.pages));
+        localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(result.issues));
+
+        if (currentUser && !activeProject.id.startsWith('proj-') && activeProject.id !== 'p-default') {
+          try {
+            await supabase
+              .from('projects')
+              .update({
+                last_run_at: nowIso,
+                health_score: score,
+              })
+              .eq('id', activeProject.id);
+          } catch (err) {}
+        }
+
+        const updated = projects.map((p) => (p.id === activeProject.id ? updatedProj : p));
+        setProjects(updated);
+        setActiveProject(updatedProj);
       }
+    } catch (err) {
+      console.error('Failed to run instant audit from Dashboard:', err);
     }
-
-    const updated = projects.map((p) => (p.id === activeProject.id ? updatedProj : p));
-    setProjects(updated);
-    setActiveProject(updatedProj);
   };
 
   // Logout
@@ -301,86 +351,82 @@ export const AppContent: React.FC = () => {
 
   const isAdmin = currentUser?.email === 'ismailelasiouty3@gmail.com';
 
+  const getProjectIssues = () => {
+    if (activeProject?.id) {
+      const saved = localStorage.getItem(`seo_gps_issues_${activeProject.id}`);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {}
+      }
+    }
+    const quickSaved = localStorage.getItem('seo_gps_issues_quick');
+    if (quickSaved) {
+      try {
+        return JSON.parse(quickSaved);
+      } catch (e) {}
+    }
+    return [];
+  };
+
+  const getProjectPages = () => {
+    if (activeProject?.id) {
+      const saved = localStorage.getItem(`seo_gps_pages_${activeProject.id}`);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {}
+      }
+    }
+    const quickSaved = localStorage.getItem('seo_gps_pages_quick');
+    if (quickSaved) {
+      try {
+        return JSON.parse(quickSaved);
+      } catch (e) {}
+    }
+    return [];
+  };
+
   const renderContent = () => {
     switch (currentTab) {
       case 'overview':
         return (
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
+            onNavigateToSiteReport={() => setCurrentTab('site_report')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}
             onRunInstantAnalysis={handleRunInstantAnalysis}
           />
         );
+      case 'site_report':
+        return (
+          <SiteReportPage
+            activeProject={activeProject}
+            onNavigateToIssues={() => setCurrentTab('issues')}
+          />
+        );
       case 'quick_audit':
-        return <QuickAuditPage />;
+        return (
+          <QuickAuditPage
+            onNavigateToSiteReport={() => setCurrentTab('site_report')}
+            onNavigateToIssues={() => setCurrentTab('issues')}
+            onNavigateToPages={() => setCurrentTab('pages')}
+            onSaveAsProject={handleProjectAdded}
+            activeProject={activeProject}
+          />
+        );
       case 'issues':
-        return <IssuesPage />;
+        return <IssuesPage issues={getProjectIssues()} />;
       case 'pages':
-        return <PagesExplorerPage />;
-      case 'sitemap':
-        return (
-          <GenericCheckPage
-            checkId="sitemap"
-            title="Sitemap XML Synchronization"
-            category="SITEMAP"
-            description="Audits all URLs listed inside sitemap.xml against actual live server responses and canonical tags."
-            howToFix="Ensure your XML sitemap only includes 200 OK indexable canonical pages, and immediately prune redirects or 404 URLs."
-          />
-        );
-      case 'schema':
-        return (
-          <GenericCheckPage
-            checkId="schema"
-            title="Structured Data & Schema.org"
-            category="SCHEMA"
-            description="Extracts JSON-LD, Microdata, and validates Google Rich Results prerequisites and syntax errors."
-            howToFix="Inspect JSON-LD snippets on affected pages and supply missing mandatory properties such as author, headline, or offers."
-          />
-        );
-      case 'metadata':
-        return (
-          <GenericCheckPage
-            checkId="metadata"
-            title="Title, Description & Robots Directives"
-            category="METADATA"
-            description="Tracks accidental noindex tags, altered title tags, character length anomalies, and meta descriptions."
-            howToFix="Remove accidental 'noindex' or 'nofollow' meta tags from production releases and keep title tags between 20-70 characters."
-          />
-        );
-      case 'canonicals':
-        return (
-          <GenericCheckPage
-            checkId="canonicals"
-            title="Canonical Tag Integrity"
-            category="CANONICAL"
-            description="Validates self-referential canonicals, cross-domain references, and newly modified canonical destinations."
-            howToFix="Ensure canonical URLs match the exact absolute URL of the page including protocol and trailing slashes."
-          />
-        );
-      case 'similarity':
-        return (
-          <GenericCheckPage
-            checkId="similarity"
-            title="Keyword & Content Cannibalization"
-            category="CONTENT"
-            description="Identifies internal pages competing for identical search intents, title keywords, and heading topics."
-            howToFix="Consolidate duplicate pages using 301 redirects, or differentiate content angles and target keywords clearly."
-          />
-        );
-      case 'subdomains':
-        return (
-          <GenericCheckPage
-            checkId="subdomains"
-            title="Staging & Dev Subdomain Exposure"
-            category="SECURITY"
-            description="Passively scans Certificate Transparency and HTTP headers for leaked non-production environments."
-            howToFix="Place staging, test, and dev subdomains behind HTTP Basic Auth, VPNs, or IP whitelists with noindex headers."
-          />
-        );
+        return <PagesExplorerPage pages={getProjectPages()} />;
       case 'history':
-        return <HistoryPage />;
+        return (
+          <HistoryPage
+            onOpenReport={() => setCurrentTab('site_report')}
+          />
+        );
       case 'settings':
         return (
           <SettingsPage
@@ -398,6 +444,7 @@ export const AppContent: React.FC = () => {
         ) : (
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
+            onNavigateToSiteReport={() => setCurrentTab('site_report')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}
@@ -408,6 +455,7 @@ export const AppContent: React.FC = () => {
         return (
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
+            onNavigateToSiteReport={() => setCurrentTab('site_report')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}

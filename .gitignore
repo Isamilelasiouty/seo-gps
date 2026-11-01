@@ -60,3 +60,6 @@ Desktop.ini
 /frontend/dist/
 /frontend/dist-ssr/
 /frontend/*.local
+
+# Local execution data & outbox
+.local/

@@ -18,6 +18,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [name, setName] = useState('');
   const [rootUrl, setRootUrl] = useState('');
   const [sitemapUrl, setSitemapUrl] = useState('');
+  const [extraUrls, setExtraUrls] = useState('');
   const [email, setEmail] = useState('');
   const [frequency, setFrequency] = useState<'hourly' | 'daily' | 'weekly'>('daily');
   const [crawlHour, setCrawlHour] = useState('06');
@@ -31,6 +32,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       setName('');
       setRootUrl('');
       setSitemapUrl('');
+      setExtraUrls('');
       setEmail('');
       setFrequency('daily');
       setCrawlHour('06');
@@ -53,6 +55,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       domain: domain,
       root_url: rootUrl,
       sitemap_url: sitemapUrl,
+      extra_urls: extraUrls,
       frequency,
       daily_crawl_hour: parseInt(crawlHour, 10),
       crawl_day: crawlDay,
@@ -129,6 +132,46 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               onChange={(e) => setSitemapUrl(e.target.value)}
               className="w-full px-4 py-2.5 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border"
             />
+          </div>
+
+          {/* Extra URLs to check (Optional) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-body-sm font-bold text-ink">
+                {t('onboarding.extra_urls_label') || "Extra URLs to check (Optional)"}
+              </label>
+              <label className="text-xs text-gold font-semibold cursor-pointer hover:underline">
+                <span>{t('onboarding.upload_file') || "Upload TXT/CSV"}</span>
+                <input
+                  type="file"
+                  accept=".txt,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const content = event.target?.result as string;
+                        if (content) {
+                          setExtraUrls((prev) => prev ? `${prev}\n${content}` : content);
+                        }
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <textarea
+              rows={3}
+              placeholder="Paste URLs to check (one per line), e.g. 404 export from Google Search Console"
+              value={extraUrls}
+              onChange={(e) => setExtraUrls(e.target.value)}
+              className="w-full px-4 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border font-mono text-xs"
+            />
+            <p className="text-[11px] text-ink-muted mt-1">
+              {t('onboarding.extra_urls_hint') || "Discovered & reported with source=imported"}
+            </p>
           </div>
 
           {/* Scheduling: Hourly, Daily, Weekly */}
@@ -241,7 +284,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-body-sm text-ink-muted hover:text-ink font-semibold"
             >
-              {t('project_actions.delete') ? 'Cancel' : 'إلغاء'}
+              {t('common.cancel')}
             </button>
             <button
               type="submit"

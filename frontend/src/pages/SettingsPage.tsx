@@ -31,7 +31,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onDeleteProject,
   onOpenAddProject,
 }) => {
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
 
   // Local state for active project form
   const [name, setName] = useState('');
@@ -43,6 +43,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [crawlDay, setCrawlDay] = useState('monday');
   const [timezone, setTimezone] = useState('UTC');
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [emailPolicy, setEmailPolicy] = useState<'every_run' | 'send_on_delta'>('every_run');
+  const [targetYear, setTargetYear] = useState(2027);
+  const [wordCountThreshold, setWordCountThreshold] = useState(250);
+  const [maxHops, setMaxHops] = useState(5);
+  const [slugConfidenceThreshold, setSlugConfidenceThreshold] = useState(0.60);
+  const [gscEnabled, setGscEnabled] = useState(false);
+  const [llmPolishEnabled, setLlmPolishEnabled] = useState(false);
   const [notifyCritical, setNotifyCritical] = useState(true);
   const [notifyWarning, setNotifyWarning] = useState(true);
   const [notifyNotice, setNotifyNotice] = useState(false);
@@ -125,7 +132,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl" dir={dir}>
       {/* Header */}
       <div>
         <h1 className="text-title-xl font-extrabold text-ink tracking-tight">
@@ -345,6 +352,37 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             />
           </div>
 
+          {/* Email Policy Setting (Section 7 Requirement) */}
+          <div className="pt-2 border-t border-surface-hairline">
+            <label className="block text-body-sm font-bold text-ink mb-1.5">
+              {t('settings.daily_email_policy')}
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-center gap-2.5 p-3 rounded-lg bg-surface border border-surface-hairline cursor-pointer">
+                <input
+                  type="radio"
+                  name="emailPolicy"
+                  value="every_run"
+                  checked={emailPolicy === 'every_run'}
+                  onChange={() => setEmailPolicy('every_run')}
+                  className="text-gold focus:ring-gold"
+                />
+                <span className="text-xs font-bold text-ink">{t('settings.policy_every_run')}</span>
+              </label>
+              <label className="flex items-center gap-2.5 p-3 rounded-lg bg-surface border border-surface-hairline cursor-pointer">
+                <input
+                  type="radio"
+                  name="emailPolicy"
+                  value="send_on_delta"
+                  checked={emailPolicy === 'send_on_delta'}
+                  onChange={() => setEmailPolicy('send_on_delta')}
+                  className="text-gold focus:ring-gold"
+                />
+                <span className="text-xs font-bold text-ink">{t('settings.policy_delta_only')}</span>
+              </label>
+            </div>
+          </div>
+
           <div className="space-y-3 pt-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -382,6 +420,104 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div>
                 <span className="text-body-md font-bold text-ink">{t('settings.notice_title')}</span>
                 <span className="text-xs text-ink-muted block">{t('settings.notice_desc')}</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* 4.5. Analysis Thresholds & Target Year */}
+        <div className="editorial-card p-6 space-y-4">
+          <h3 className="font-extrabold text-title-sm text-ink flex items-center gap-2">
+            <Sliders className="w-5 h-5 text-gold" />
+            <span>{t('settings.thresholds_title')}</span>
+          </h3>
+          <p className="text-body-sm text-ink-muted">
+            {t('settings.thresholds_desc')}
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">{t('settings.target_year')}</label>
+              <input
+                type="number"
+                value={targetYear}
+                onChange={(e) => setTargetYear(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm font-bold text-ink"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">{t('settings.word_count_floor')}</label>
+              <input
+                type="number"
+                value={wordCountThreshold}
+                onChange={(e) => setWordCountThreshold(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm font-bold text-ink"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">{t('settings.max_redirect_hops')}</label>
+              <input
+                type="number"
+                value={maxHops}
+                onChange={(e) => setMaxHops(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm font-bold text-ink"
+              />
+            </div>
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">{t('settings.slug_confidence')}</label>
+              <input
+                type="number"
+                step="0.05"
+                min="0.4"
+                max="1.0"
+                value={slugConfidenceThreshold}
+                onChange={(e) => setSlugConfidenceThreshold(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm font-bold text-ink"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4.6. Optional Blueprint Modules (Feature Flags) */}
+        <div className="editorial-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-extrabold text-title-sm text-ink flex items-center gap-2">
+              <Globe className="w-5 h-5 text-gold" />
+              <span>{t('settings.external_modules_title')}</span>
+            </h3>
+            <span className="text-xs font-bold text-ink-muted bg-surface px-2 py-0.5 rounded border">
+              {t('settings.default_off')}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-surface-hairline cursor-pointer">
+              <input
+                type="checkbox"
+                checked={gscEnabled}
+                onChange={(e) => setGscEnabled(e.target.checked)}
+                className="w-4 h-4 rounded text-gold focus:ring-gold"
+              />
+              <div>
+                <span className="text-body-md font-bold text-ink">{t('settings.gsc_label')}</span>
+                <span className="text-xs text-ink-muted block">
+                  {t('settings.gsc_desc')}
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-surface-hairline cursor-pointer">
+              <input
+                type="checkbox"
+                checked={llmPolishEnabled}
+                onChange={(e) => setLlmPolishEnabled(e.target.checked)}
+                className="w-4 h-4 rounded text-gold focus:ring-gold"
+              />
+              <div>
+                <span className="text-body-md font-bold text-ink">{t('settings.llm_label')}</span>
+                <span className="text-xs text-ink-muted block">
+                  {t('settings.llm_desc')}
+                </span>
               </div>
             </label>
           </div>

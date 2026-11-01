@@ -1,0 +1,52 @@
+=======================================================
+SEO GPS - DAILY ALERT REPORT
+Ismail El Asiouty
+=======================================================
+
+Site: {{ domain }}
+Run Date: {{ run_date }}
+Health Score: {{ health_score }}/100
+
+SUMMARY:
+- New Issues: {{ summary.new_count }}
+- Still Open: {{ summary.persisting_count }} (Baseline: {{ summary.baseline_count }})
+- Resolved: {{ summary.resolved_count }}
+- Reappeared: {{ summary.reappeared_count }}
+
+=======================================================
+NEW ISSUES ({{ summary.new_count }}):
+=======================================================
+{% if new_issues %}
+{% for issue in new_issues %}
+[{{ issue.severity|upper }}] {{ issue.title or issue.check_id }}
+URL: {{ issue.url }}
+{% if issue.evidence %}Evidence: {{ issue.evidence.defect or issue.evidence.reason or issue.details or "Recorded" }}{% endif %}
+{% if issue.suggestion %}Fix: {{ issue.suggestion.fix or issue.suggestion.recommended_target or issue.suggestion.action or "See dashboard" }}{% endif %}
+-------------------------------------------------------
+{% endfor %}
+{% else %}
+No new issues detected today.
+{% endif %}
+
+=======================================================
+STILL OPEN (Top 10 of {{ summary.persisting_count }}):
+=======================================================
+{% if persisting_issues %}
+{% for issue in persisting_issues[:10] %}
+- {{ issue.title or issue.check_id }} (Open {{ issue.days_open or 1 }}d{% if issue.is_baseline %} - baseline{% endif %})
+  {{ issue.url }}
+{% endfor %}
+{% endif %}
+
+=======================================================
+RESOLVED TODAY ({{ summary.resolved_count }}):
+=======================================================
+{% if resolved_issues %}
+{% for res in resolved_issues %}
+- {{ res.title or res.check_id }}: {{ res.url }}
+{% endfor %}
+{% endif %}
+
+Dashboard URL: {{ dashboard_url }}
+Notification Preferences: {{ preferences_url }}
+Unsubscribe: {{ unsubscribe_url }}

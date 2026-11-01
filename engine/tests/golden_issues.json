@@ -1,0 +1,64 @@
+{
+  "description": "Expected baseline issues detected from fixture site Day 1 on http://127.0.0.1:8099",
+  "expected_issues_count_min": 10,
+  "expected_checks": [
+    "check_status_404",
+    "check_redirect_chains",
+    "check_legacy_cms_paths",
+    "check_temporary_redirects",
+    "check_outdated_years",
+    "check_schema_gaps",
+    "check_thin_content",
+    "check_cannibalization",
+    "check_soft_404",
+    "check_noindex"
+  ],
+  "key_findings": [
+    {
+      "check_id": "check_status_404",
+      "url_contains": "%20false-404-leading-space",
+      "severity": "critical",
+      "expected_evidence_key": "sanitized_target"
+    },
+    {
+      "check_id": "check_status_404",
+      "url_contains": "true-dead-page-xyz",
+      "severity": "critical"
+    },
+    {
+      "check_id": "check_status_404",
+      "url_contains": "sitemap-dead-page",
+      "severity": "critical"
+    },
+    {
+      "check_id": "check_redirect_chains",
+      "url_contains": "chain-step-1",
+      "severity": "warning"
+    },
+    {
+      "check_id": "check_outdated_years",
+      "url_contains": "programs/medicine",
+      "severity": "warning"
+    },
+    {
+      "check_id": "check_schema_gaps",
+      "url_contains": "programs/business",
+      "severity": "notice"
+    },
+    {
+      "check_id": "check_thin_content",
+      "url_contains": "blog/admission-guide",
+      "severity": "warning"
+    },
+    {
+      "check_id": "check_cannibalization",
+      "url_contains": "cannibal-article",
+      "severity": "warning"
+    },
+    {
+      "check_id": "check_soft_404",
+      "url_contains": "soft-404-page",
+      "severity": "warning"
+    }
+  ]
+}

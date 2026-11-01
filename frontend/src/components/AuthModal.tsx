@@ -14,7 +14,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onAuthSuccess,
 }) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isAr = locale !== 'en';
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -105,9 +106,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (err.message?.toLowerCase().includes('rate limit')) {
         setErrorMsg(t('auth.rate_limit_friendly'));
       } else if (err.message?.includes('Invalid login credentials')) {
-        setErrorMsg(t('auth.have_account') ? 'بيانات الدخول غير صحيحة. يرجى التأكد من البريد وكلمة المرور.' : 'Invalid email or password.');
+        setErrorMsg(isAr ? 'بيانات الدخول غير صحيحة. يرجى التأكد من البريد وكلمة المرور.' : 'Invalid email or password.');
       } else {
-        setErrorMsg(err.message || 'حدث خطأ أثناء المحاولة. تواصل مع الدعم الفني لمساعدتك.');
+        setErrorMsg(err.message || (isAr ? 'حدث خطأ أثناء المحاولة. تواصل مع الدعم الفني لمساعدتك.' : 'An error occurred. Please contact support for help.'));
       }
     } finally {
       setIsLoading(false);

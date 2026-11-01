@@ -1,0 +1,41 @@
+=======================================================
+SEO GPS - COMPLETE FIRST SCAN BASELINE REPORT
+Ismail El Asiouty
+=======================================================
+
+Site: {{ domain }}
+Completed: {{ run_date }}
+Baseline Health Score: {{ health_score }}/100
+
+URL DISCOVERY & CRAWL STATS:
+- Discovered: {{ summary.total_discovered }}
+- Crawled: {{ summary.total_crawled }}
+- Skipped: {{ summary.total_skipped }}
+
+HTTP STATUS BREAKDOWN:
+- 200 OK: {{ status_distribution.ok_200 }}
+- Redirects (3xx): {{ status_distribution.redirects }}
+- 404/410 Not Found: {{ status_distribution.not_found_404 }}
+- 5xx Server Error: {{ status_distribution.server_error_5xx }}
+- Blocked / Other: {{ status_distribution.blocked_unverified }}
+
+ISSUES BY SEVERITY:
+- Critical: {{ severity_counts.critical }}
+- Warning: {{ severity_counts.warning }}
+- Notice: {{ severity_counts.notice }}
+
+TOP PRIORITY FIXES:
+{% if top_fixes %}
+{% for fix in top_fixes[:10] %}
+#{{ loop.index }}: {{ fix.title or fix.action }} (Priority: {{ fix.priority_score or fix.priority or 80 }})
+URL: {{ fix.url or 'N/A' }}
+Recommendation: {{ fix.recommendation or fix.details or fix.action_sentence }}
+-------------------------------------------------------
+{% endfor %}
+{% else %}
+No high-priority issues detected on the baseline scan.
+{% endif %}
+
+View Full Site Report: {{ report_url }}
+Preferences: {{ preferences_url }}
+Unsubscribe: {{ unsubscribe_url }}

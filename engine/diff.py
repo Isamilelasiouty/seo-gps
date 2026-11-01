@@ -14,8 +14,8 @@ class DiffEngine:
 
     def compare_snapshots(
         self,
-        current_snapshots: List[Dict[str, Any]],
-        previous_snapshots: List[Dict[str, Any]],
+        current_snapshots: Any,
+        previous_snapshots: Any,
         is_first_run: bool = False,
     ) -> Tuple[List[Issue], List[Dict[str, Any]], int]:
         """
@@ -25,6 +25,11 @@ class DiffEngine:
             - resolved_issues: List of issues that disappeared since previous run
             - health_score: 0-100 calculated score
         """
+        if isinstance(current_snapshots, dict):
+            current_snapshots = current_snapshots.get("crawled_pages", [])
+        if isinstance(previous_snapshots, dict):
+            previous_snapshots = previous_snapshots.get("crawled_pages", [])
+
         prev_map = {s["url"]: s for s in previous_snapshots}
         current_map = {s["url"]: s for s in current_snapshots}
 
@@ -33,7 +38,6 @@ class DiffEngine:
         context = {
             "similarity_clusters": clusters,
             "sitemap_crawled": any(s.get("in_sitemap") for s in current_snapshots),
-            "discovered_subdomains": [],
         }
 
         active_issues: List[Issue] = []

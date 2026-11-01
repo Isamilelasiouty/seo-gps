@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #FAFAF7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #16140F; -webkit-font-smoothing: antialiased; line-height: 1.6;">
+
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #FAFAF7; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <!-- Main Email Container -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 680px; background-color: #FFFFFF; border-radius: 12px; border: 1px solid #ECE8DC; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+          
+          <!-- Header with Brand & Logo -->
+          <tr>
+            <td style="padding: 24px 32px; background-color: #FFFFFF; border-bottom: 2px solid #E9D9A8;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="left" style="vertical-align: middle;">
+                    <span style="font-size: 20px; font-weight: 800; color: #16140F; letter-spacing: -0.5px;">SEO GPS</span>
+                    <span style="font-size: 13px; color: #6B665A; margin-left: 8px;">by Ismail El Asiouty</span>
+                  </td>
+                  <td align="right" style="vertical-align: middle;">
+                    <span style="display: inline-block; padding: 6px 14px; background-color: #FBF5E4; color: #B8892B; border: 1px solid #E9D9A8; border-radius: 20px; font-size: 13px; font-weight: 700;">
+                      Health Score: {{ health_score }}/100
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Summary Strip -->
+          <tr>
+            <td style="padding: 24px 32px; background-color: #FAFAF7; border-bottom: 1px solid #ECE8DC;">
+              <p style="margin: 0 0 14px 0; font-size: 14px; color: #6B665A;">
+                Daily scan report for <strong>{{ domain }}</strong> &bull; {{ run_date }}
+              </p>
+              
+              <!-- 4-Stat Strip: New / Still open / Resolved / Reappeared -->
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="padding: 10px; background-color: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 8px; width: 23%; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #B42318; font-weight: 700;">New</div>
+                    <div style="font-size: 20px; font-weight: 800; color: #B42318; margin-top: 2px;">{{ summary.new_count }}</div>
+                  </td>
+                  <td style="width: 8px;"></td>
+                  <td style="padding: 10px; background-color: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 8px; width: 27%; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #B54708; font-weight: 700;">Still Open</div>
+                    <div style="font-size: 20px; font-weight: 800; color: #B54708; margin-top: 2px;">
+                      {{ summary.persisting_count }}
+                    </div>
+                    {% if summary.baseline_count %}
+                    <div style="font-size: 10px; color: #8F8B80; margin-top: 1px;">
+                      ({{ summary.baseline_count }} from baseline)
+                    </div>
+                    {% endif %}
+                  </td>
+                  <td style="width: 8px;"></td>
+                  <td style="padding: 10px; background-color: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 8px; width: 23%; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #067647; font-weight: 700;">Resolved</div>
+                    <div style="font-size: 20px; font-weight: 800; color: #067647; margin-top: 2px;">{{ summary.resolved_count }}</div>
+                  </td>
+                  <td style="width: 8px;"></td>
+                  <td style="padding: 10px; background-color: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 8px; width: 23%; text-align: center;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #53389E; font-weight: 700;">Reappeared</div>
+                    <div style="font-size: 20px; font-weight: 800; color: #53389E; margin-top: 2px;">{{ summary.reappeared_count }}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Section: New Issues (Full Detail) -->
+          <tr>
+            <td style="padding: 28px 32px; border-bottom: 1px solid #ECE8DC;">
+              <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 800; color: #B42318; display: flex; align-items: center;">
+                🚨 New Issues Detected ({{ summary.new_count }})
+              </h3>
+              {% if new_issues %}
+                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border: 1px solid #FECDCA; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                  {% for issue in new_issues %}
+                  <tr style="border-bottom: 1px solid #FEE4E2; background-color: #FFFDFD;">
+                    <td style="padding: 14px 16px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-weight: 700; font-size: 14px; color: {% if issue.severity == 'critical' %}#B42318{% elif issue.severity == 'warning' %}#B54708{% else %}#175CD3{% endif %};">
+                          {{ issue.title or issue.check_id }}
+                        </span>
+                        <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: {% if issue.severity == 'critical' %}#FEF3F2; color: #B42318;{% elif issue.severity == 'warning' %}#FFFAEB; color: #B54708;{% else %}#EFF8FF; color: #175CD3;{% endif %}">
+                          {{ issue.severity|upper }}
+                        </span>
+                      </div>
+                      <div style="font-size: 12px; color: #6B665A; word-break: break-all; margin-bottom: 6px;">
+                        <strong>URL:</strong> {{ issue.url }}
+                      </div>
+                      {% if issue.evidence %}
+                      <div style="font-size: 12px; color: #413E35; background: #FAFAF7; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-family: monospace;">
+                        {% if issue.evidence.final_status %}Status: {{ issue.evidence.final_status }} &bull; {% endif %}
+                        {% if issue.evidence.source %}Source: {{ issue.evidence.source }} &bull; {% endif %}
+                        {{ issue.evidence.defect or issue.evidence.reason or issue.details or "Evidence recorded" }}
+                      </div>
+                      {% endif %}
+                      {% if issue.suggestion %}
+                      <div style="font-size: 12px; color: #067647;">
+                        <strong>💡 Suggested Fix:</strong> {{ issue.suggestion.fix or issue.suggestion.recommended_target or issue.suggestion.action or "See dashboard for details." }}
+                      </div>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              {% else %}
+                <p style="font-size: 14px; color: #067647; margin: 0;">
+                  ✨ No new regressions found today! Your site is holding steady.
+                </p>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Section: Still Open Since Earlier Scans (Compact Table) -->
+          <tr>
+            <td style="padding: 28px 32px; border-bottom: 1px solid #ECE8DC;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #B54708;">
+                  ⏳ Still Open Since Earlier Scans ({{ summary.persisting_count }})
+                </h3>
+              </div>
+              {% if persisting_issues %}
+                <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border: 1px solid #FEDF89; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">
+                  {% for issue in persisting_issues[:10] %}
+                  <tr style="border-bottom: 1px solid #FEF0C7; background-color: {% if loop.index % 2 == 0 %}#FFFFFF{% else %}#FFFCF5{% endif %};">
+                    <td style="padding: 10px 14px;">
+                      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-weight: 700; font-size: 13px; color: #16140F;">{{ issue.title or issue.check_id }}</span>
+                        <span style="font-size: 12px; font-weight: 600; color: #B54708;">
+                          Open {{ issue.days_open or 1 }}d {% if issue.is_baseline %}&bull; <em style="color: #6B665A;">since baseline</em>{% endif %}
+                        </span>
+                      </div>
+                      <div style="font-size: 12px; color: #6B665A; word-break: break-all;">
+                        {{ issue.url }}
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </table>
+                {% if summary.persisting_count > 10 %}
+                <div align="center" style="margin-top: 8px;">
+                  <a href="{{ issues_url }}" style="font-size: 13px; color: #B8892B; text-decoration: underline; font-weight: 700;">
+                    View all {{ summary.persisting_count }} persisting issues in dashboard &rarr;
+                  </a>
+                </div>
+                {% endif %}
+              {% else %}
+                <p style="font-size: 14px; color: #067647; margin: 0;">
+                  No unresolved persisting issues!
+                </p>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Section: Resolved Since Last Scan -->
+          {% if resolved_issues %}
+          <tr>
+            <td style="padding: 24px 32px; border-bottom: 1px solid #ECE8DC; background-color: #F6FEF9;">
+              <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 800; color: #067647;">
+                ✅ Resolved Since Yesterday ({{ summary.resolved_count }})
+              </h3>
+              <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #067647;">
+                {% for res in resolved_issues[:10] %}
+                <li style="margin-bottom: 4px;">
+                  <strong>{{ res.title or res.check_id }}:</strong> <span style="color: #413E35;">{{ res.url }}</span>
+                </li>
+                {% endfor %}
+              </ul>
+              {% if summary.resolved_count > 10 %}
+              <div style="margin-top: 8px; font-size: 12px; color: #067647;">
+                + {{ summary.resolved_count - 10 }} more resolved issues.
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding: 28px 32px; text-align: center;">
+              <a href="{{ dashboard_url }}" style="display: inline-block; padding: 13px 32px; background-color: #B8892B; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 4px rgba(184, 137, 43, 0.2);">
+                Open SEO GPS Dashboard &rarr;
+              </a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 32px; background-color: #FAFAF7; border-top: 1px solid #ECE8DC; text-align: center; font-size: 13px; color: #6B665A;">
+              <p style="margin: 0 0 8px 0;">
+                You received this daily alert because you subscribed to daily monitoring for <strong>{{ domain }}</strong>.
+              </p>
+              <p style="margin: 0;">
+                <a href="{{ preferences_url }}" style="color: #B8892B; text-decoration: underline;">Notification Preferences</a> &bull; 
+                <a href="{{ unsubscribe_url }}" style="color: #6B665A; text-decoration: underline;">Unsubscribe</a>
+              </p>
+              <p style="margin: 12px 0 0 0; font-size: 12px; color: #8F8B80;">
+                SEO GPS by Ismail El Asiouty &bull; Zero-Cost Infrastructure
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
