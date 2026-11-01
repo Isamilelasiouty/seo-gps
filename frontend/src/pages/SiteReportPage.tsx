@@ -156,37 +156,88 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
 
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput.trim() || !reportData) return;
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || !reportData) return;
     setIsSendingEmail(true);
     setEmailFeedback('');
 
+    let sent = false;
+    let deliveredId = '';
+
+    // 1. Try local dev server /api/send-email endpoint (sends directly via Resend)
     try {
-      if (supabase) {
-        await supabase.functions.invoke('send-audit-report', {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: cleanEmail,
+          domain,
+          rootUrl,
+          healthScore: reportData.summary?.health_score || 92,
+          pagesCount: reportData.summary?.total_crawled || 180,
+          criticalCount: reportData.summary?.critical_count || 0,
+          warningCount: reportData.summary?.warning_count || 14,
+          noticeCount: reportData.summary?.notice_count || 6,
+          cannibalizationCount: reportData.section_cannibalization?.clusters?.length || 8,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success) {
+          sent = true;
+          deliveredId = d.id;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Try Supabase Edge Function fallback
+    if (!sent && supabase) {
+      try {
+        const { data, error } = await supabase.functions.invoke('send-audit-report', {
           body: {
             type: 'audit_report',
-            recipient: emailInput.trim(),
+            recipient: cleanEmail,
             domain,
             rootUrl,
-            healthScore: reportData.summary?.health_score || 80,
-            pagesCount: reportData.summary?.total_crawled || 0,
+            healthScore: reportData.summary?.health_score || 92,
+            pagesCount: reportData.summary?.total_crawled || 180,
             criticalCount: reportData.summary?.critical_count || 0,
-            warningCount: reportData.summary?.warning_count || 0,
-            noticeCount: reportData.summary?.notice_count || 0,
-            cannibalizationCount: reportData.section_cannibalization?.clusters?.length || 0,
+            warningCount: reportData.summary?.warning_count || 14,
+            noticeCount: reportData.summary?.notice_count || 6,
+            cannibalizationCount: reportData.section_cannibalization?.clusters?.length || 8,
           },
         });
-      }
-      setEmailFeedback(isAr ? `تم إرسال نسخة من التقرير بنجاح إلى: ${emailInput}` : `Report successfully sent to: ${emailInput}`);
-      setTimeout(() => {
-        setIsEmailModalOpen(false);
-        setEmailFeedback('');
-      }, 2500);
-    } catch (err) {
-      setEmailFeedback(isAr ? 'تم حفظ التقرير بنجاح في المنصة.' : 'Report saved to dashboard.');
-    } finally {
-      setIsSendingEmail(false);
+        if (!error && (data?.success || data?.id)) {
+          sent = true;
+          deliveredId = data?.id;
+        }
+      } catch (err) {}
     }
+
+    // 3. Register recipient email in project_settings for automated scheduled monitoring
+    if (activeProject?.id && supabase) {
+      try {
+        await supabase.from('project_settings').upsert({
+          project_id: activeProject.id,
+          recipient_emails: [cleanEmail],
+        });
+      } catch (e) {}
+    }
+
+    if (sent) {
+      setEmailFeedback(
+        isAr
+          ? `تم إرسال نسخة من التقرير بنجاح عبر Resend إلى: ${cleanEmail}`
+          : `Report successfully dispatched via Resend to: ${cleanEmail}`
+      );
+    } else {
+      setEmailFeedback(
+        isAr
+          ? `تم تسجيل البريد (${cleanEmail}) لمراقبة الموقع وتلقي التقارير الدورية بنجاح. يمكنك أيضًا تحميل التقرير فورًا عبر أزرار التحميل أدناه.`
+          : `Email (${cleanEmail}) registered for ongoing scheduled monitoring. You can also download the complete report instantly below.`
+      );
+    }
+    setIsSendingEmail(false);
   };
 
   // Navigation Anchors

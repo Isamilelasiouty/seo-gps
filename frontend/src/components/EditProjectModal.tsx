@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { sanitizeInputUrl } from '../lib/siteCrawler';
 import { useI18n } from '../i18n';
 import { X, Globe, Mail, Clock, Trash2, Save, Calendar } from 'lucide-react';
 

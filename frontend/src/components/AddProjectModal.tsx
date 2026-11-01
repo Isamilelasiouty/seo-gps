@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { X, Globe, Mail, Clock, ShieldCheck } from 'lucide-react';
 import { ProjectData } from './EditProjectModal';
+import { sanitizeInputUrl } from '../lib/siteCrawler';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -48,13 +49,14 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
     e.preventDefault();
     setIsSubmitting(true);
 
-    const domain = rootUrl.replace(/https?:\/\//, '').split('/')[0] || 'example.com';
+    const { cleanRoot, domain } = sanitizeInputUrl(rootUrl);
+    const cleanSitemap = sitemapUrl.trim() ? sanitizeInputUrl(sitemapUrl).cleanRoot : '';
     const newProj: ProjectData = {
       id: `proj-${Date.now()}`,
-      name: name || domain,
-      domain: domain,
-      root_url: rootUrl,
-      sitemap_url: sitemapUrl,
+      name: name || domain || 'My Website',
+      domain: domain || 'example.com',
+      root_url: cleanRoot,
+      sitemap_url: cleanSitemap,
       extra_urls: extraUrls,
       frequency,
       daily_crawl_hour: parseInt(crawlHour, 10),
