@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useI18n } from '../i18n';
 import { GaugeChart } from '../components/GaugeChart';
 import { supabase } from '../lib/supabase';
-import { FullAuditResult, resolveCannibalization } from '../lib/siteCrawler';
+import { FullAuditResult, resolveCannibalization, resolveTopFix, executeSiteCrawl } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import {
   Sparkles,
@@ -141,6 +141,18 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
             resultData = data;
           }
         } catch (e) {}
+      }
+
+      // 3. Fallback to client-side in-browser crawler execution
+      if (!resultData || !resultData.success) {
+        setProgressMsg(isAr ? 'جاري الفحص المباشر عبر محرك الزحف...' : 'Executing in-browser site crawl...');
+        resultData = await executeSiteCrawl({
+          rootUrl: cleanRoot,
+          sitemapUrl: sitemapUrl.trim() || undefined,
+          maxPages: 60,
+          targetYear: 2027,
+          locale: isAr ? 'ar' : 'en',
+        });
       }
 
       if (!resultData || !resultData.success) {

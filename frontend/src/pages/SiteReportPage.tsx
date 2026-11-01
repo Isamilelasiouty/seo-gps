@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { ProjectData } from '../components/EditProjectModal';
 import { GaugeChart } from '../components/GaugeChart';
-import { resolveTopFix, resolveCannibalization } from '../lib/siteCrawler';
+import { resolveTopFix, resolveCannibalization, executeSiteCrawl, getFixtureReport } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import { supabase } from '../lib/supabase';
 import {
@@ -100,29 +100,44 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
     setIsRunningAudit(true);
 
     try {
-      const res = await fetch('/api/quick-audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let data: any = null;
+      try {
+        const res = await fetch('/api/quick-audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rootUrl,
+            sitemapUrl: activeProject?.sitemap_url || undefined,
+            maxPages: 60,
+            targetYear: 2027,
+            locale: isAr ? 'ar' : 'en',
+          }),
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (err) {
+        console.warn('Backend crawler endpoint unreachable, running in-browser crawler...');
+      }
+
+      if (!data || !data.success) {
+        data = await executeSiteCrawl({
           rootUrl,
           sitemapUrl: activeProject?.sitemap_url || undefined,
           maxPages: 60,
           targetYear: 2027,
           locale: isAr ? 'ar' : 'en',
-        }),
-      });
+        });
+      }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.siteReport) {
-          setReportData(data.siteReport);
-          if (activeProject?.id) {
-            localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(data.siteReport));
-            localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(data.pages));
-            localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(data.issues));
-          }
-          localStorage.setItem('seo_gps_report_quick', JSON.stringify(data.siteReport));
+      if (data && data.siteReport) {
+        setReportData(data.siteReport);
+        if (activeProject?.id) {
+          localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(data.siteReport));
+          localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(data.pages));
+          localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(data.issues));
         }
+        localStorage.setItem('seo_gps_report_quick', JSON.stringify(data.siteReport));
       }
     } catch (e) {
       console.error('Failed to run audit from SiteReport:', e);
@@ -1064,218 +1079,3 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
   );
 };
 
-// Fixture Baseline Fallback helper
-function getFixtureReport(domain: string, isAr: boolean) {
-  return {
-    scan_id: 'baseline-fixture',
-    domain,
-    root_url: `http://${domain}/`,
-    is_baseline: true,
-    created_at: new Date().toISOString(),
-    summary: {
-      health_score: 78,
-      total_discovered: 27,
-      total_crawled: 27,
-      total_skipped: 0,
-      critical_count: 5,
-      warning_count: 12,
-      notice_count: 6,
-      status_distribution: {
-        ok_200: 16,
-        redirect_3xx: 6,
-        not_found_404: 3,
-        server_error_5xx: 1,
-        blocked_unverified: 1,
-      },
-    },
-    top_fixes: [
-      {
-        priority_score: 95,
-        title: isAr ? 'إصلاح رابط 404 ناتج عن مسافة بيضاء زائدة (%20)' : 'Fix False 404 with Leading Space',
-        url: `http://${domain}/%20false-404-leading-space`,
-        recommendation: isAr
-          ? 'إزالة رمز %20 الزائد في الرابط الداخلي بالصفحة الرئيسية'
-          : `Remove accidental %20 in source internal link on homepage to point to http://${domain}/false-404-leading-space`,
-        action_sentence: isAr
-          ? 'تعديل الرابط في كود الصفحة الرئيسية وإزالة المسافة الزائدة'
-          : 'Correct source link on homepage to remove leading %20 whitespace defect.',
-      },
-      {
-        priority_score: 90,
-        title: isAr ? 'تحويل 301 للرابط العربي المقطوع' : '301 Redirect for Truncated Arabic Slug',
-        url: `http://${domain}/arabic-slug-%D8%AF%D9%84%D9%8A%D9%84-%D8%A7%D9%84%D9%82%D8%A8`,
-        recommendation: isAr
-          ? `إضافة تحويل 301 إلى الرابط الكامل: http://${domain}/arabic-slug-دليل-القبول`
-          : `Add 301 redirect to active target: http://${domain}/arabic-slug-دليل-القبول`,
-        action_sentence: isAr ? 'إضافة تحويل 301 للرابط العربي' : 'Add 301 redirect to matched active Arabic slug guide.',
-      },
-      {
-        priority_score: 88,
-        title: isAr ? 'دمج سلسلة تحويلات من 3 قفزات' : 'Collapse 3-Hop Redirect Chain',
-        url: `http://${domain}/chain-step-1`,
-        recommendation: isAr
-          ? `تحويل /chain-step-1 مباشرة إلى http://${domain}/programs/computer-science`
-          : `Collapse /chain-step-1 directly to http://${domain}/programs/computer-science using generated Nginx rule.`,
-        action_sentence: isAr ? 'تحديث قاعدة التحويل في الخادم للإشارة مباشرة إلى الوجهة النهائية' : 'Update Nginx redirect to point directly to final destination.',
-      },
-      {
-        priority_score: 82,
-        title: isAr ? 'تحديث السنة القديمة 2024 إلى 2027' : 'Update Outdated Year 2024 to 2027',
-        url: `http://${domain}/programs/medicine`,
-        recommendation: isAr ? 'تحديث السنة إلى 2027 في العنوان والـ H1 للحفاظ على معدل النقر (CTR)' : 'Update references from year 2024 to 2027 in title and H1.',
-        action_sentence: isAr ? 'تحديث سنة 2024 إلى 2027 في العنوان و H1' : 'Update outdated year 2024 to 2027 in title and H1.',
-      },
-    ],
-    section_status: {
-      total_404: 3,
-      false_404_count: 1,
-      true_dead_count: 2,
-      soft_404_count: 1,
-      false_404_ratio: '33% False vs 67% True Dead',
-      false_404_items: [
-        {
-          raw_url: `http://${domain}/%20false-404-leading-space`,
-          defect: isAr ? 'مسافة زائدة (%20) في الرابط' : 'leading whitespace / %20 in URL path',
-          sanitized_target: `http://${domain}/false-404-leading-space`,
-          source: 'internal_link',
-          found_on: `http://${domain}/`,
-        },
-      ],
-      true_dead_items: [
-        {
-          url: `http://${domain}/true-dead-page-xyz`,
-          status: 404,
-          inbound_links_count: 1,
-          in_sitemap: false,
-          dead_match: `http://${domain}/programs/computer-science`,
-          confidence: 0.65,
-        },
-      ],
-      soft_404_items: [
-        {
-          url: `http://${domain}/soft-404-page`,
-          status: 200,
-          reason: isAr ? 'عنوان الصفحة يحتوي على عبارة تدل على أنها غير موجودة' : 'Page title contains 404 error phrase',
-          confidence: 'high',
-        },
-      ],
-    },
-    section_redirects: {
-      total_redirects: 6,
-      temporary_302_count: 1,
-      chains_count: 1,
-      loops_count: 0,
-      legacy_groups: [],
-      chains: [
-        {
-          source: `http://${domain}/chain-step-1`,
-          hops: 3,
-          path: ['/chain-step-1', '/chain-step-2', '/chain-step-3', '/programs/computer-science'],
-          final_target: `http://${domain}/programs/computer-science`,
-          nginx: `rewrite ^/chain-step-1$ http://${domain}/programs/computer-science permanent;`,
-        },
-      ],
-      temporary_redirects: [
-        { url: `http://${domain}/temporary-redirect`, target: `http://${domain}/programs/business`, code: 302 },
-      ],
-    },
-    section_onpage: {
-      outdated_years: [
-        {
-          url: `http://${domain}/programs/medicine`,
-          detected_year: '2024',
-          target_year: '2027',
-          field: 'title / H1',
-          suggested_text: isAr ? 'شروط القبول في كلية الطب 2027' : 'Admission Requirements Medicine 2027',
-        },
-      ],
-      thin_pages: [
-        { url: `http://${domain}/blog/admission-guide`, word_count: 42, threshold: 250, has_meta_desc: false },
-      ],
-      noindex_pages: [
-        { url: `http://${domain}/noindex-page`, directive: 'noindex, follow' },
-      ],
-      canonical_issues: [
-        { url: `http://${domain}/canonical-mismatch`, declared: `http://${domain}/different-target-canonical`, issue: isAr ? 'تعارض الرابط الأساسي' : 'Canonical mismatch' },
-      ],
-    },
-    section_cannibalization: {
-      clusters_count: 1,
-      clusters: [
-        {
-          topic: isAr ? 'شروط المنح الدراسية بالخارج' : 'Scholarship Requirements Abroad',
-          similarityScore: '84%',
-          masterUrl: `http://${domain}/cannibal-article-a`,
-          masterTitle: isAr ? 'دليل شروط المنح الدراسية بالخارج لعام 2027' : 'Scholarship Guide Abroad 2027',
-          candidateUrl: `http://${domain}/cannibal-article-b`,
-          candidateTitle: isAr ? 'شروط المنح الدراسية الخارجية للطلاب 2027' : 'Student Scholarship Requirements 2027',
-          signals: isAr ? 'تطابق في الكلمات المفتاحية الرئيسية' : 'Overlap in major keywords',
-          recommendation: isAr
-            ? 'يوصى باعتماد مقال (أ) كمقال رئيسي وعمل تحويل 301 للمقال (ب)'
-            : 'Keep Article A as master guide; 301 redirect or consolidate Article B into Article A.',
-        },
-      ],
-    },
-    section_schema: {
-      gaps_count: 1,
-      gaps: [
-        {
-          url: `http://${domain}/programs/business`,
-          missing: 'FAQPage',
-          detected_qa_count: 2,
-          generated_jsonld: JSON.stringify(
-            {
-              '@context': 'https://schema.org',
-              '@type': 'FAQPage',
-              mainEntity: [
-                {
-                  '@type': 'Question',
-                  name: 'ما هي شروط القبول بالبرنامج؟',
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: 'الحصول على الحد الأدنى 75% مع اجتياز المقابلة الشخصية.',
-                  },
-                },
-              ],
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    },
-    section_taxonomy: {
-      type_distribution: { home: 1, article: 8, other: 18 },
-      uncategorized_count: 0,
-      samples: [],
-    },
-    section_action_plans: [
-      {
-        role: 'engineering',
-        title: isAr ? 'خطة عمل المطورين والمهندسين' : 'Engineering Plan',
-        items: [
-          isAr ? 'تطبيق قواعد إعادة التوجيه 301 في خادم Nginx للروابط المعطلة وسلاسل التحويل.' : 'Deploy 301 rewrite rules in Nginx for dead pages and redirect chains.',
-          isAr ? 'إصلاح الرابط الذي يحتوي على مسافة بيضاء زائدة (%20) في كود الصفحة الرئيسية.' : 'Fix internal anchor tags with leading whitespace (%20) on homepage.',
-          isAr ? 'إدراج كود Schema FAQPage في صفحة إدارة الأعمال.' : 'Embed FAQPage Schema JSON-LD on Business program page.',
-        ],
-      },
-      {
-        role: 'content',
-        title: isAr ? 'خطة عمل صناع المحتوى والتحرير' : 'Content Plan',
-        items: [
-          isAr ? 'تحديث سنة 2024 إلى 2027 في عنوان وفقرات مقال كلية الطب.' : 'Update year 2024 to 2027 in Medicine program guide.',
-          isAr ? 'حل مشكلة تضارب وتنافس الكلمات بين مقالي المنح الدراسية بدمجهما في دليل موحد.' : 'Resolve cannibalization by consolidating scholarship articles into a single guide.',
-          isAr ? 'إثراء مقال دليل القبول (42 كلمة فقط) ليصل إلى أكثر من 300 كلمة مفيدة.' : 'Expand thin content on admission guide page (currently 42 words).',
-        ],
-      },
-      {
-        role: 'technical_seo',
-        title: isAr ? 'خطة عمل السيو التقني' : 'Technical SEO Plan',
-        items: [
-          isAr ? 'مراجعة أوسمة الـ Canonical وإزالة التوجيه غير الصحيح في صفحة canonical-mismatch.' : 'Fix canonical mismatch on /canonical-mismatch page.',
-          isAr ? 'التأكد من عدم وجود وسم Noindex غير مقصود في صفحات البرامج الرئيسية.' : 'Verify robots meta to ensure key program pages do not have accidental noindex.',
-        ],
-      },
-    ],
-  };
-}
