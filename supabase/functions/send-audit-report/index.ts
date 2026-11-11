@@ -131,9 +131,13 @@ serve(async (req) => {
                 : `<p style="color: #067647; font-weight: bold;">تهانينا! موقعك بحالة ممتازة ولم يتم رصد أي مشاكل تقنية حرجة.</p>`
             }
 
+            <div style="text-align: center; margin: 24px 0 16px;">
+              <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 13px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">عرض التقرير التفاعلي الكامل في المنصة &rarr;</a>
+            </div>
+
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E5E5DE; text-align: center; font-size: 12px; color: #98A2B3;">
               <p style="margin: 0;">تم إنشاء التقرير آلياً بواسطة منصة <strong>SEO GPS</strong> &bull; بإشراف إسماعيل الأسيوطي</p>
-              <p style="margin: 4px 0 0;"><a href="https://isamilelasiouty.github.io/seo-gps/" style="color: #B8892B; text-decoration: none;">الدخول إلى لوحة التحكم SEO GPS</a></p>
+              <p style="margin: 4px 0 0;"><a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="color: #B8892B; text-decoration: none;">الدخول إلى لوحة التحكم SEO GPS</a></p>
             </div>
           </div>
         </div>
@@ -158,10 +162,14 @@ serve(async (req) => {
     const resendData = await resendRes.json();
 
     if (!resendRes.ok) {
-      console.warn("Resend API response:", resendData);
+      console.warn("Resend API response:", resendRes.status, resendData);
+      const isSandboxRestriction =
+        resendRes.status === 403 ||
+        (typeof resendData?.message === "string" && resendData.message.includes("resend.com/domains"));
       return new Response(
         JSON.stringify({
           success: false,
+          isSandboxRestriction,
           error: resendData.message || "Failed to send email via Resend",
         }),
         { status: resendRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }

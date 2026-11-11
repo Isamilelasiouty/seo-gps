@@ -21,6 +21,7 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 
 const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
 const LAST_ACTIVE_PROJECT_KEY = 'seo_gps_last_active_project_id';
+const USER_SESSION_KEY = 'seo_gps_persisted_user_session';
 
 export const AppContent: React.FC = () => {
   const { dir, t } = useI18n();
@@ -68,13 +69,28 @@ export const AppContent: React.FC = () => {
     return null;
   });
 
-  // User Auth State
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  // User Auth State with Instant Session Persistence on Reload
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem(USER_SESSION_KEY);
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {}
+    return null;
+  });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<ProjectData | null>(null);
+
+  // Sync current user to LocalStorage
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(currentUser));
+      } catch (e) {}
+    }
+  }, [currentUser]);
 
   // Sync projects to LocalStorage whenever modified
   useEffect(() => {
@@ -115,7 +131,22 @@ export const AppContent: React.FC = () => {
         if (!mounted) return;
         if (session?.user) {
           setCurrentUser(session.user);
+          try {
+            localStorage.setItem(USER_SESSION_KEY, JSON.stringify(session.user));
+          } catch (e) {}
           await loadUserProjects(session.user.id);
+        } else {
+          // If Supabase session is not yet detected, check if we have a persisted user session
+          const savedUser = localStorage.getItem(USER_SESSION_KEY);
+          if (savedUser) {
+            try {
+              const parsed = JSON.parse(savedUser);
+              if (parsed?.id) {
+                setCurrentUser(parsed);
+                await loadUserProjects(parsed.id);
+              }
+            } catch (e) {}
+          }
         }
       } catch (err) {
         console.warn('Supabase session load error:', err);
@@ -128,12 +159,20 @@ export const AppContent: React.FC = () => {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       const user = session?.user || null;
-      setCurrentUser(user);
       if (user) {
+        setCurrentUser(user);
+        try {
+          localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+        } catch (e) {}
         await loadUserProjects(user.id);
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        try {
+          localStorage.removeItem(USER_SESSION_KEY);
+        } catch (e) {}
       }
       setIsAuthLoading(false);
     });
@@ -362,6 +401,7 @@ export const AppContent: React.FC = () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
     try {
+      localStorage.removeItem(USER_SESSION_KEY);
       localStorage.removeItem('seo_gps_supabase_auth_token');
     } catch (e) {}
   };

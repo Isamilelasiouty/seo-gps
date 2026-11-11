@@ -221,13 +221,20 @@ export function sanitizeInputUrl(input: string): { cleanRoot: string; domain: st
 }
 
 export function normalizeUrl(u: string): string {
+  if (!u) return '';
+  let cleaned = u.trim().replace(/^[/\s"']+/, '');
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = 'https://' + cleaned;
+  }
+  cleaned = cleaned.replace(/^https?:\/\/+(\/?https?:\/\/+)+/i, 'https://');
+  cleaned = cleaned.replace(/^https?:\/\/\/+/i, 'https://');
   try {
-    const p = new URL(u);
+    const p = new URL(cleaned);
     let path = p.pathname.replace(/\/+$/, '');
     if (!path) path = '/';
     return `${p.protocol}//${p.host}${path}`;
   } catch (e) {
-    return u.replace(/\/+$/, '') || '/';
+    return cleaned.replace(/\/+$/, '') || '/';
   }
 }
 export function extractKeywords(text: string): string[] {

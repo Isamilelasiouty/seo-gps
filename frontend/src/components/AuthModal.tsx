@@ -49,11 +49,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     try {
       if (mode === 'signup') {
+        const redirectUrl = typeof window !== 'undefined'
+          ? `${window.location.origin}${window.location.pathname}`
+          : 'https://isamilelasiouty.github.io/seo-gps/';
+
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
           options: {
             data: { full_name: name.trim() },
+            emailRedirectTo: redirectUrl,
           },
         });
 

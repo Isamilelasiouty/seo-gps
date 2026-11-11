@@ -214,6 +214,7 @@ async def run_audit_for_project(
         mailer = Mailer(local_mode=local_mode)
         run_date_str = now_dt.strftime("%d %b %Y")
         
+        frontend_url = os.getenv("FRONTEND_URL", "https://isamilelasiouty.github.io/seo-gps").rstrip("/")
         if is_baseline:
             await mailer.send_first_scan_report(
                 recipients=recipients,
@@ -225,8 +226,8 @@ async def run_audit_for_project(
                 category_counts=report_dict.get("category_counts", {}),
                 severity_counts=report_dict.get("severity_counts", {}),
                 top_fixes=report_dict.get("top_fixes", []),
-                report_url=f"http://localhost:5173/#/site-report",
-                dashboard_url="http://localhost:5173/#/",
+                report_url=f"{frontend_url}/#/site-report",
+                dashboard_url=f"{frontend_url}/#/",
             )
         else:
             baseline_count = sum(1 for i in persisting_issues if i.get("is_baseline"))
@@ -247,7 +248,7 @@ async def run_audit_for_project(
                 resolved_issues=resolved_issues,
                 reappeared_issues=reappeared_issues,
                 email_policy=project.get("email_policy", "send_every_run"),
-                dashboard_url="http://localhost:5173/#/",
+                dashboard_url=f"{frontend_url}/#/",
             )
 
     print(f"[SEO GPS] Audit run finished for {domain}. Scan ID: {scan_id}")

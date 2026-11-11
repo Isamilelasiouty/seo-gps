@@ -18,6 +18,9 @@ import jinja2
 import httpx
 
 
+DEFAULT_FRONTEND_URL = os.getenv("FRONTEND_URL", "https://isamilelasiouty.github.io/seo-gps").rstrip("/")
+
+
 def _slugify(text: str) -> str:
     s = re.sub(r"[^\w\s-]", "", text).strip().lower()
     return re.sub(r"[-\s]+", "_", s)[:50]
@@ -113,6 +116,8 @@ class Mailer:
                     return True
                 else:
                     print(f"[Mailer] Resend API error ({res.status_code}): {res.text}")
+                    if res.status_code == 403 and "verify a domain" in res.text:
+                        print("[Mailer] NOTICE: Resend sandbox restriction active ('onboarding@resend.dev'). Only the account owner (ismailelasiouty3@gmail.com) can receive test emails directly until a custom domain is verified at https://resend.com/domains.")
                     # Fallback to local outbox so mail is never lost
                     self._save_to_outbox(recipients, subject, html, text, email_type=email_type)
                     return False
@@ -132,10 +137,14 @@ class Mailer:
         category_counts: Dict[str, Any],
         severity_counts: Dict[str, Any],
         top_fixes: List[Any],
-        report_url: str = "http://localhost:5173/#/report",
-        dashboard_url: str = "http://localhost:5173/#/",
+        report_url: Optional[str] = None,
+        dashboard_url: Optional[str] = None,
     ) -> bool:
         """Compile and send the First Scan Baseline Report email."""
+        base_url = (os.getenv("FRONTEND_URL") or DEFAULT_FRONTEND_URL).rstrip("/")
+        report_url = report_url or f"{base_url}/#/site-report"
+        dashboard_url = dashboard_url or f"{base_url}/#/"
+
         subject = f"[SEO GPS] Baseline Report: {domain} ({health_score}/100) - {summary.get('total_discovered', 0)} URLs discovered"
         context = {
             "subject": subject,
@@ -149,8 +158,8 @@ class Mailer:
             "top_fixes": top_fixes,
             "report_url": report_url,
             "dashboard_url": dashboard_url,
-            "preferences_url": f"{dashboard_url}#/settings",
-            "unsubscribe_url": f"{dashboard_url}#/unsubscribe",
+            "preferences_url": f"{dashboard_url}settings",
+            "unsubscribe_url": f"{dashboard_url}unsubscribe",
         }
 
         html_tmpl = self.jinja_env.get_template("first_scan_report.html")
@@ -172,9 +181,12 @@ class Mailer:
         resolved_issues: List[Any],
         reappeared_issues: Optional[List[Any]] = None,
         email_policy: str = "send_every_run",  # or "send_on_delta"
-        dashboard_url: str = "http://localhost:5173/#/",
+        dashboard_url: Optional[str] = None,
     ) -> bool:
         """Compile and send the Daily Alert email."""
+        base_url = (os.getenv("FRONTEND_URL") or DEFAULT_FRONTEND_URL).rstrip("/")
+        dashboard_url = dashboard_url or f"{base_url}/#/"
+
         reappeared_issues = reappeared_issues or []
         new_count = summary.get("new_count", len(new_issues))
         persisting_count = summary.get("persisting_count", len(persisting_issues))
@@ -206,10 +218,10 @@ class Mailer:
             "persisting_issues": persisting_issues,
             "resolved_issues": resolved_issues,
             "reappeared_issues": reappeared_issues,
-            "issues_url": f"{dashboard_url}#/issues",
+            "issues_url": f"{dashboard_url}issues",
             "dashboard_url": dashboard_url,
-            "preferences_url": f"{dashboard_url}#/settings",
-            "unsubscribe_url": f"{dashboard_url}#/unsubscribe",
+            "preferences_url": f"{dashboard_url}settings",
+            "unsubscribe_url": f"{dashboard_url}unsubscribe",
         }
 
         html_tmpl = self.jinja_env.get_template("daily_alert.html")
@@ -229,9 +241,11 @@ class Mailer:
         warning_issues: List[Any],
         notice_issues: List[Any],
         resolved_issues: List[Any],
-        dashboard_url: str = "http://localhost:5173/#/",
+        dashboard_url: Optional[str] = None,
     ) -> bool:
         """Legacy helper maintained for backward compatibility."""
+        base_url = (os.getenv("FRONTEND_URL") or DEFAULT_FRONTEND_URL).rstrip("/")
+        dashboard_url = dashboard_url or f"{base_url}/#/"
         summary = {
             "new_count": len(critical_issues) + len(warning_issues) + len(notice_issues),
             "persisting_count": 0,

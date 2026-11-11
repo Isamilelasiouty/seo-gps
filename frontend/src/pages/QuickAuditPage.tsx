@@ -177,6 +177,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
       // Mandatory Email delivery via Resend / Edge Function
       let sentEmail = false;
+      let isSandboxBlocked = false;
       try {
         const emailRes = await fetch('/api/send-email', {
           method: 'POST',
@@ -196,6 +197,11 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
         if (emailRes.ok) {
           const ed = await emailRes.json();
           if (ed.success) sentEmail = true;
+        } else {
+          const errData = await emailRes.json().catch(() => ({}));
+          if (errData?.error && (errData.error.includes('resend.com/domains') || errData.error.includes('testing emails to your own email address'))) {
+            isSandboxBlocked = true;
+          }
         }
       } catch (err) {}
 
@@ -215,12 +221,22 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
               cannibalizationCount: resultData.cannibalization?.length || 8,
             },
           });
-          if (!error && (data?.success || data?.id)) sentEmail = true;
+          if (!error && (data?.success || data?.id)) {
+            sentEmail = true;
+          } else if (data?.isSandboxRestriction) {
+            isSandboxBlocked = true;
+          }
         } catch (e) {}
       }
 
       if (sentEmail) {
         setEmailStatus(t('quick_audit.email_sent_success').replace('{email}', cleanEmail));
+      } else if (isSandboxBlocked) {
+        setEmailStatus(
+          isAr
+            ? `تم حفظ التقرير وتسجيل البريد (${cleanEmail}) لمراقبة الموقع! تنبيه: إرسال الإيميلات الخارجية يتطلب تفعيل دومين مخصص في Resend (resend.com/domains). يمكنك تحميل التقرير فوراً الآن عبر أزرار التحميل أدناه.`
+            : `Report saved & email (${cleanEmail}) registered for monitoring! Note: Sending to external domains requires verifying your domain on Resend (resend.com/domains). You can download your report immediately below.`
+        );
       } else {
         setEmailStatus(t('quick_audit.email_fallback_notice'));
       }

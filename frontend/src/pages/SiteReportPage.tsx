@@ -162,6 +162,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
     setEmailFeedback('');
 
     let sent = false;
+    let isSandboxBlocked = false;
     let deliveredId = '';
 
     // 1. Try local dev server /api/send-email endpoint (sends directly via Resend)
@@ -187,6 +188,11 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
           sent = true;
           deliveredId = d.id;
         }
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        if (errJson?.error && (errJson.error.includes('resend.com/domains') || errJson.error.includes('testing emails to your own email address'))) {
+          isSandboxBlocked = true;
+        }
       }
     } catch (e) {}
 
@@ -210,6 +216,8 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
         if (!error && (data?.success || data?.id)) {
           sent = true;
           deliveredId = data?.id;
+        } else if (data?.isSandboxRestriction) {
+          isSandboxBlocked = true;
         }
       } catch (err) {}
     }
@@ -229,6 +237,12 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
         isAr
           ? `تم إرسال نسخة من التقرير بنجاح عبر Resend إلى: ${cleanEmail}`
           : `Report successfully dispatched via Resend to: ${cleanEmail}`
+      );
+    } else if (isSandboxBlocked) {
+      setEmailFeedback(
+        isAr
+          ? `تم حفظ التقرير وتسجيل البريد (${cleanEmail}) لمراقبة الموقع بنجاح! تنبيه: إرسال الإيميلات الخارجية يتطلب تفعيل دومين مخصص في Resend (resend.com/domains). يمكنك تحميل التقرير الكامل فوراً الآن بصيغة PDF أو HTML.`
+          : `Report saved & email (${cleanEmail}) registered for monitoring! Note: Sending to external domains requires verifying your domain on Resend (resend.com/domains). You can download your complete report right now via PDF or HTML below.`
       );
     } else {
       setEmailFeedback(

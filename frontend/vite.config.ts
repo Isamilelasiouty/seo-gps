@@ -92,8 +92,9 @@ function quickAuditApiPlugin(): Plugin {
                 return;
               }
 
+              const emailFrom = process.env.EMAIL_FROM || 'SEO GPS <onboarding@resend.dev>';
               const emailPayload = {
-                from: 'SEO GPS <onboarding@resend.dev>',
+                from: emailFrom,
                 to: [recipient],
                 subject: `[SEO GPS] تقرير الفحص التقني الشامل: ${domain} (درجة الصحة: ${healthScore}/100)`,
                 html: `
@@ -135,7 +136,7 @@ function quickAuditApiPlugin(): Plugin {
                       </div>
 
                       <div style="text-align: center; margin-top: 24px;">
-                        <a href="https://isamilelasiouty.github.io/seo-gps" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">فتح التقرير التفاعلي في المنصة</a>
+                        <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">فتح التقرير التفاعلي في المنصة &rarr;</a>
                       </div>
                     </div>
                     <div style="background: #F9FAFB; padding: 16px; text-align: center; font-size: 12px; color: #667085; border-top: 1px solid #E5E5DE;">
