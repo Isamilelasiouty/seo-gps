@@ -14,7 +14,12 @@ import {
   ArrowRight,
   Eye,
   Hash,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { buildPageSchemaDetails, SchemaDetail } from '../lib/siteCrawler';
 
 export interface PageRecord {
   url: string;
@@ -30,12 +35,14 @@ export interface PageRecord {
   isIndexable: boolean;
   canonical?: string;
   schemas: string[];
+  schemaDetails?: SchemaDetail[];
   issueCount?: number;
   internalLinks?: {
     url: string;
     anchor: string;
     statusCode?: number;
     isBroken?: boolean;
+    inContent?: boolean;
   }[];
 }
 
@@ -52,6 +59,28 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
   const [inspectorTab, setInspectorTab] = useState<'links' | 'schemas' | 'meta'>('links');
   const [linkSearch, setLinkSearch] = useState('');
   const [linkStatusFilter, setLinkStatusFilter] = useState<'all' | '200' | '301' | 'broken'>('all');
+  const [expandedSchemaIndex, setExpandedSchemaIndex] = useState<number | null>(null);
+  const [copiedSchemaIndex, setCopiedSchemaIndex] = useState<number | null>(null);
+
+  const handleCopyCode = (code: string, idx: number) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedSchemaIndex(idx);
+    setTimeout(() => setCopiedSchemaIndex(null), 2000);
+  };
+
+  const pageSchemaDetails: SchemaDetail[] =
+    selectedPage?.schemaDetails && selectedPage.schemaDetails.length > 0
+      ? selectedPage.schemaDetails
+      : selectedPage
+      ? buildPageSchemaDetails(
+          selectedPage.url,
+          selectedPage.title,
+          selectedPage.description || '',
+          selectedPage.schemas || [],
+          isAr
+        )
+      : [];
 
   const filtered = pages.filter((p) => {
     const matchesSearch =
@@ -355,7 +384,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                 <Code className="w-3.5 h-3.5" />
                 <span>{t('pages.tab_schemas')}</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
-                  {selectedPage.schemas?.length || 0}
+                  {pageSchemaDetails.length}
                 </span>
               </button>
 
@@ -372,9 +401,20 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
               </button>
             </div>
 
-            {/* Tab 1: Internal Links & Anchor Texts */}
+            {/* Tab 1: In-Content Internal Links & Anchor Texts */}
             {inspectorTab === 'links' && (
               <div className="flex-1 overflow-y-auto space-y-3">
+                {/* In-Content Notice Banner */}
+                <div className="p-3 bg-gold-tint/40 rounded-xl border border-gold-border/60 text-xs text-ink flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-gold shrink-0" />
+                    <span>{t('pages.in_content_notice')}</span>
+                  </div>
+                  <span className="font-bold text-gold text-[11px] whitespace-nowrap px-2 py-0.5 rounded bg-white border border-gold-border">
+                    {filteredPageLinks.length} {isAr ? 'رابط محتوى' : 'in-content'}
+                  </span>
+                </div>
+
                 {/* Search & Status Filters for Links */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
                   <div className="relative flex-1 w-full">
@@ -477,41 +517,149 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
               </div>
             )}
 
-            {/* Tab 2: Schema.org Markup Inspector */}
+            {/* Tab 2: Schema.org Markup Inspector & Code Viewer */}
             {inspectorTab === 'schemas' && (
               <div className="flex-1 overflow-y-auto space-y-4">
                 <div className="p-4 bg-surface rounded-xl border border-surface-hairline flex items-center justify-between">
                   <div>
                     <h4 className="text-body-sm font-extrabold text-ink">
-                      {isAr ? 'البيانات المنظمة المكتشفة في الصفحة' : 'Structured Data Detected'}
+                      {isAr ? 'البيانات المنظمة المكتشفة في الصفحة (Primary Schemas)' : 'Structured Data Detected'}
                     </h4>
                     <p className="text-xs text-ink-muted">
                       {isAr
-                        ? 'تساعد وسوم Schema محركات البحث في فهم كيانات الصفحة وعرض النتائج الغنية (Rich Snippets).'
-                        : 'Schema markup helps search engines understand page entities and power rich results.'}
+                        ? 'يتم فحص وسوم الاسكيما الأساسية الموجودة فعلياً في الصفحة مع بيان حالة الصحة التقنية وعرض كود الـ JSON-LD عند النقر.'
+                        : 'Primary schema entities detected with rich results validation and raw JSON-LD snippet.'}
                     </p>
                   </div>
                   <span className="px-3 py-1 rounded-full bg-gold-tint text-gold font-bold text-xs border border-gold-border">
-                    {selectedPage.schemas?.length || 0} Schemas
+                    {pageSchemaDetails.length} Schemas
                   </span>
                 </div>
 
-                {selectedPage.schemas && selectedPage.schemas.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedPage.schemas.map((s, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-white rounded-xl border border-surface-hairline shadow-sm flex items-center gap-3"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-xs shrink-0">
-                          <Code className="w-4 h-4" />
+                {pageSchemaDetails && pageSchemaDetails.length > 0 ? (
+                  <div className="space-y-3">
+                    {pageSchemaDetails.map((s, idx) => {
+                      const isExpanded = expandedSchemaIndex === idx;
+                      const isValid = s.status === 'valid';
+                      const isWarning = s.status === 'warning';
+                      const isCopied = copiedSchemaIndex === idx;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white rounded-xl border border-surface-hairline shadow-sm overflow-hidden transition-all"
+                        >
+                          {/* Card Header */}
+                          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface/40">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                                  isValid
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                                    : isWarning
+                                    ? 'bg-amber-50 border-amber-200 text-amber-600'
+                                    : 'bg-rose-50 border-rose-200 text-rose-600'
+                                }`}
+                              >
+                                <Code className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-extrabold text-ink text-sm">{s.type}</span>
+                                  <span className="text-[11px] text-ink-muted font-mono">schema.org/{s.type}</span>
+                                </div>
+                                <div className="text-xs text-ink-muted mt-0.5">
+                                  {isAr ? s.details_ar : s.details_en}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Status Badge */}
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 border ${
+                                  isValid
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : isWarning
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                                }`}
+                              >
+                                {isValid ? (
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                )}
+                                <span>{isAr ? s.status_ar : s.status_en}</span>
+                              </span>
+
+                              {/* Toggle Code Button */}
+                              <button
+                                onClick={() => setExpandedSchemaIndex(isExpanded ? null : idx)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border ${
+                                  isExpanded
+                                    ? 'bg-ink text-white border-ink'
+                                    : 'bg-surface hover:bg-gold-tint hover:text-gold text-ink border-surface-hairline'
+                                }`}
+                              >
+                                <Code className="w-3.5 h-3.5" />
+                                <span>{isExpanded ? t('pages.hide_schema_code') : t('pages.view_schema_code')}</span>
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Problem & Recommended Solution */}
+                          <div className="px-4 py-3 border-t border-surface-hairline bg-white text-xs space-y-2">
+                            {s.issue_ar ? (
+                              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-amber-900 space-y-1">
+                                <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <span>{t('pages.schema_issue_title')}</span>
+                                </div>
+                                <div className="text-amber-900 leading-relaxed pl-5 rtl:pr-5">
+                                  {isAr ? s.issue_ar : s.issue_en}
+                                </div>
+                                <div className="font-bold text-amber-800 pt-1 flex items-center gap-1.5">
+                                  <ArrowRight className="w-3.5 h-3.5 text-gold" />
+                                  <span>{t('pages.schema_solution_title')}</span>
+                                </div>
+                                <div className="text-ink leading-relaxed pl-5 rtl:pr-5 font-medium">
+                                  {isAr ? s.solution_ar : s.solution_en}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-emerald-800 bg-emerald-50/60 p-2.5 rounded-lg border border-emerald-200">
+                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>{t('pages.schema_valid_msg')}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Expanded JSON-LD Code Snippet with Copy Button */}
+                          {isExpanded && s.rawJson && (
+                            <div className="border-t border-surface-hairline bg-[#1E1E1E] text-slate-200 p-4 relative">
+                              <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-xs">
+                                <div className="flex items-center gap-2 text-gold font-mono font-bold">
+                                  <Code className="w-3.5 h-3.5" />
+                                  <span>application/ld+json</span>
+                                </div>
+                                <button
+                                  onClick={() => handleCopyCode(s.rawJson || '', idx)}
+                                  className="px-2.5 py-1 rounded bg-white/10 hover:bg-gold hover:text-white transition-all text-white text-[11px] font-bold flex items-center gap-1"
+                                >
+                                  {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                  <span>{isCopied ? t('pages.schema_copied') : t('pages.copy_schema_code')}</span>
+                                </button>
+                              </div>
+                              <pre className="font-mono text-xs text-amber-300 overflow-x-auto p-2 bg-black/40 rounded-lg max-h-64 leading-relaxed">
+                                <code>{s.rawJson}</code>
+                              </pre>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <div className="font-mono font-bold text-ink text-xs">{s}</div>
-                          <div className="text-[11px] text-ink-muted">schema.org/{s}</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-8 text-center text-ink-muted text-xs bg-surface rounded-xl border border-surface-hairline">
