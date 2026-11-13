@@ -46,6 +46,91 @@ serve(async (req) => {
       cannibalizationCount = 0,
     } = body;
 
+    // -------------------------------------------------------------------------
+    // Mode: Live Issue Re-Check & Fix Verification Probe
+    // -------------------------------------------------------------------------
+    if (type === "verify_issue") {
+      let targetUrl = (body.url || "").trim();
+      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+        targetUrl = "https://" + targetUrl.replace(/^\/+/, "");
+      }
+      const checkId = (body.checkId || "").toLowerCase();
+
+      try {
+        const probeRes = await fetch(targetUrl, {
+          headers: {
+            "User-Agent": "SEOGPS-Bot/1.0 (+https://isamilelasiouty.github.io/seo-gps; verification)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+          redirect: "follow",
+        });
+
+        const status = probeRes.status;
+        const htmlText = await probeRes.text();
+        let verified = false;
+        let reason = "";
+
+        if (checkId.includes("404") || checkId.includes("broken") || checkId.includes("status")) {
+          if (status >= 200 && status < 400) {
+            verified = true;
+            reason = `تم فحص الرابط بنجاح: كود الاستجابة الحالي هو ${status} OK (تم إصلاح الخطأ 404)`;
+          } else {
+            reason = `ما زال الرابط يرجع كود خطأ ${status}`;
+          }
+        } else if (checkId.includes("title")) {
+          const titleMatch = htmlText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+          const titleVal = titleMatch ? titleMatch[1].trim() : "";
+          if (titleVal.length > 0) {
+            verified = true;
+            reason = `تم اكتشاف عنوان الصفحة بنجاح: "${titleVal.slice(0, 35)}..."`;
+          } else {
+            reason = "ما زال عنوان الصفحة (Title) مفقوداً في الكود المصدري";
+          }
+        } else if (checkId.includes("desc")) {
+          const hasDesc = /<meta[^>]+name=["']description["'][^>]+content=["'][^"']+["']/i.test(htmlText);
+          if (hasDesc) {
+            verified = true;
+            reason = "تم التحقق من وجود الوصف التعريفي (Meta Description) بنجاح";
+          } else {
+            reason = "ما زال الوصف التعريفي مفقوداً في الصفحة";
+          }
+        } else if (checkId.includes("h1")) {
+          const hasH1 = /<h1[^>]*>[\s\S]*?<\/h1>/i.test(htmlText);
+          if (hasH1) {
+            verified = true;
+            reason = "تم التحقق من وجود وسم العنوان الرئيسي (H1)";
+          } else {
+            reason = "ما زال وسم H1 مفقوداً في الصفحة";
+          }
+        } else if (checkId.includes("schema")) {
+          const hasSchema = htmlText.includes("application/ld+json");
+          if (hasSchema) {
+            verified = true;
+            reason = "تم التحقق من وجود بيانات Schema المنظمة داخل الصفحة";
+          } else {
+            reason = "لم يتم العثور على كود Schema صالح في الصفحة";
+          }
+        } else {
+          if (status >= 200 && status < 400) {
+            verified = true;
+            reason = `الرابط يعمل بنجاح ويستجيب بكود ${status} OK`;
+          } else {
+            reason = `الرابط ما زال يرجع كود ${status}`;
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, verified, status, reason, url: targetUrl }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err: any) {
+        return new Response(
+          JSON.stringify({ success: false, verified: false, reason: `تعذر الوصول للرابط: ${err.message || 'خطأ في الاتصال'}` }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       return new Response(

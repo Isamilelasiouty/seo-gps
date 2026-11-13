@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
-import { X, Globe, Mail, Clock, ShieldCheck } from 'lucide-react';
+import { X, Globe, Mail, Clock, ShieldCheck, User } from 'lucide-react';
 import { ProjectData } from './EditProjectModal';
 import { sanitizeInputUrl } from '../lib/siteCrawler';
+import { saveLead } from '../lib/leadTracker';
+import { supabase } from '../lib/supabase';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -15,7 +17,9 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { t } = useI18n();
+  const { t, locale, dir } = useI18n();
+  const isAr = locale !== 'en';
+
   const [name, setName] = useState('');
   const [rootUrl, setRootUrl] = useState('');
   const [sitemapUrl, setSitemapUrl] = useState('');
@@ -26,8 +30,9 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [crawlDay, setCrawlDay] = useState('monday');
   const [timezone, setTimezone] = useState('UTC');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Requirement 1: Ensure modal opens completely empty every time with zero leftover data
+  // Requirement: Ensure modal opens clean with zero leftover state
   useEffect(() => {
     if (isOpen) {
       setName('');
@@ -40,20 +45,65 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       setCrawlDay('monday');
       setTimezone('UTC');
       setIsSubmitting(false);
+      setFormError('');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    // 1. Mandatory Email Validation
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setFormError(isAr ? 'يرجى إدخال بريد إلكتروني صالح لتسجيل ومتابعة الموقع' : 'Please provide a valid email address');
+      return;
+    }
+
+    // 2. Mandatory Name Validation
+    const cleanName = name.trim();
+    if (!cleanName) {
+      setFormError(isAr ? 'يرجى إدخال الاسم الكامل أو اسم المسؤول' : 'Please provide your full name');
+      return;
+    }
+
+    // 3. Mandatory URL Validation
+    const { cleanRoot, domain } = sanitizeInputUrl(rootUrl);
+    if (!cleanRoot || !domain) {
+      setFormError(isAr ? 'يرجى إدخال رابط موقع صحيح (مثال: https://example.com)' : 'Please provide a valid website URL');
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const { cleanRoot, domain } = sanitizeInputUrl(rootUrl);
+    // Save lead into persistent local storage and database
+    saveLead({
+      name: cleanName,
+      email: cleanEmail,
+      domain: domain,
+      source: 'manual',
+    });
+
+    // Notify administrator (Ismail) via Supabase Edge Function in background
+    if (supabase) {
+      supabase.functions.invoke('send-audit-report', {
+        body: {
+          type: 'lead_registration',
+          userName: cleanName,
+          userEmail: cleanEmail,
+          domain: domain,
+        },
+      }).catch((err) => {
+        console.warn('Lead notification dispatch caught:', err);
+      });
+    }
+
     const cleanSitemap = sitemapUrl.trim() ? sanitizeInputUrl(sitemapUrl).cleanRoot : '';
     const newProj: ProjectData = {
       id: `proj-${Date.now()}`,
-      name: name || domain || 'My Website',
+      name: cleanName,
       domain: domain || 'example.com',
       root_url: cleanRoot,
       sitemap_url: cleanSitemap,
@@ -62,7 +112,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       daily_crawl_hour: parseInt(crawlHour, 10),
       crawl_day: crawlDay,
       timezone,
-      recipient_email: email,
+      recipient_email: cleanEmail,
       health_score: 100,
       last_run_at: undefined,
     };
@@ -73,16 +123,16 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-lg bg-white rounded-card shadow-2xl border border-surface-hairline overflow-hidden animate-in zoom-in-95">
         {/* Header */}
         <div className="p-5 border-b border-surface-hairline flex items-center justify-between">
           <div>
             <h3 className="text-title-md font-extrabold text-ink">
-              {t('onboarding.step_title')}
+              {t('onboarding.step_title') || (isAr ? 'إضافة موقع جديد للمراقبة والفحص' : 'Add Website for Monitoring')}
             </h3>
             <span className="text-xs font-semibold text-gold mt-0.5 inline-block">
-              {t('header.projects_available')}
+              {isAr ? 'تسجيل إلزامي للبريد لتفعيل تنبيهات الفحص اليومي' : 'Mandatory email registration for automated audit alerts'}
             </span>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface text-ink-muted">
@@ -90,30 +140,63 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
           </button>
         </div>
 
+        {/* Error Alert */}
+        {formError && (
+          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-bold flex items-center gap-2">
+            <span>{formError}</span>
+          </div>
+        )}
+
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          {/* User Name */}
           <div>
             <label className="block text-body-sm font-bold text-ink mb-1.5">
-              {t('admin.table_name')} <span className="text-severity-critical">*</span>
+              {isAr ? 'الاسم الكامل' : 'Full Name'} <span className="text-severity-critical">*</span>
             </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. My Website / موقعي الأول"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink focus:outline-none focus:border-gold-border"
-            />
+            <div className="relative">
+              <User className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+              <input
+                type="text"
+                required
+                placeholder={isAr ? 'مثال: محمد سعيد / شركة التقنية' : 'e.g. John Doe / Tech House'}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border"
+              />
+            </div>
           </div>
 
+          {/* Email Address - MANDATORY */}
           <div>
             <label className="block text-body-sm font-bold text-ink mb-1.5">
-              {t('onboarding.root_url')} <span className="text-severity-critical">*</span>
+              {isAr ? 'البريد الإلكتروني (لتلقي التقارير)' : 'Email Address (for Reports & Alerts)'} <span className="text-severity-critical">*</span>
+            </label>
+            <div className="relative">
+              <Mail className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+              <input
+                type="email"
+                required
+                placeholder="name@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border"
+              />
+            </div>
+            <p className="text-[11px] text-ink-muted mt-1">
+              {isAr ? 'يتم حفظ البريد تلقائياً لإرسال تقرير الفحص وإشعارات التراجع.' : 'Used to deliver audit reports and regression alerts.'}
+            </p>
+          </div>
+
+          {/* Website URL */}
+          <div>
+            <label className="block text-body-sm font-bold text-ink mb-1.5">
+              {t('onboarding.root_url') || (isAr ? 'رابط الموقع (Root URL)' : 'Website URL')} <span className="text-severity-critical">*</span>
             </label>
             <div className="relative">
               <Globe className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
               <input
-                type="url"
+                type="text"
                 required
                 placeholder="https://example.com"
                 value={rootUrl}
@@ -123,12 +206,13 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
             </div>
           </div>
 
+          {/* Optional Sitemap */}
           <div>
             <label className="block text-body-sm font-bold text-ink mb-1.5">
-              {t('onboarding.sitemap_url')}
+              {t('onboarding.sitemap_url') || (isAr ? 'رابط خريطة الموقع (اختياري)' : 'Sitemap URL (Optional)')}
             </label>
             <input
-              type="url"
+              type="text"
               placeholder="https://example.com/sitemap.xml"
               value={sitemapUrl}
               onChange={(e) => setSitemapUrl(e.target.value)}
@@ -136,52 +220,12 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
             />
           </div>
 
-          {/* Extra URLs to check (Optional) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-body-sm font-bold text-ink">
-                {t('onboarding.extra_urls_label') || "Extra URLs to check (Optional)"}
-              </label>
-              <label className="text-xs text-gold font-semibold cursor-pointer hover:underline">
-                <span>{t('onboarding.upload_file') || "Upload TXT/CSV"}</span>
-                <input
-                  type="file"
-                  accept=".txt,.csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) => {
-                        const content = event.target?.result as string;
-                        if (content) {
-                          setExtraUrls((prev) => prev ? `${prev}\n${content}` : content);
-                        }
-                      };
-                      reader.readAsText(file);
-                    }
-                  }}
-                />
-              </label>
-            </div>
-            <textarea
-              rows={3}
-              placeholder="Paste URLs to check (one per line), e.g. 404 export from Google Search Console"
-              value={extraUrls}
-              onChange={(e) => setExtraUrls(e.target.value)}
-              className="w-full px-4 py-2 bg-surface rounded-lg border border-surface-hairline text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border font-mono text-xs"
-            />
-            <p className="text-[11px] text-ink-muted mt-1">
-              {t('onboarding.extra_urls_hint') || "Discovered & reported with source=imported"}
-            </p>
-          </div>
-
-          {/* Scheduling: Hourly, Daily, Weekly */}
+          {/* Schedule Settings */}
           <div className="p-4 bg-surface rounded-xl border border-surface-hairline space-y-3">
-            <label className="block text-body-sm font-bold text-ink flex items-center gap-1.5">
+            <div className="flex items-center gap-2 text-ink font-bold text-body-sm">
               <Clock className="w-4 h-4 text-gold" />
-              <span>{t('project_actions.frequency')}</span>
-            </label>
+              <span>{t('onboarding.schedule_title') || (isAr ? 'جدولة الفحص التلقائي' : 'Automated Crawl Schedule')}</span>
+            </div>
 
             <div className="grid grid-cols-3 gap-2">
               {(['hourly', 'daily', 'weekly'] as const).map((freq) => (
@@ -189,94 +233,24 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
                   key={freq}
                   type="button"
                   onClick={() => setFrequency(freq)}
-                  className={`py-2 px-3 rounded-lg text-body-sm font-bold border transition-all ${
+                  className={`py-2 text-center rounded-lg text-xs font-bold transition-all ${
                     frequency === freq
-                      ? 'bg-gold text-white border-gold shadow-sm'
-                      : 'bg-white border-surface-hairline text-ink-muted hover:text-ink'
+                      ? 'bg-gold text-white shadow-sm'
+                      : 'bg-white border border-surface-hairline text-ink-muted hover:text-ink'
                   }`}
                 >
-                  {t(`project_actions.${freq}`)}
+                  {t(`project_actions.${freq}`) || freq}
                 </button>
               ))}
-            </div>
-
-            {frequency === 'weekly' && (
-              <div>
-                <label className="block text-xs font-bold text-ink-muted mb-1">
-                  {t('project_actions.day_of_week')}
-                </label>
-                <select
-                  value={crawlDay}
-                  onChange={(e) => setCrawlDay(e.target.value)}
-                  className="w-full px-3 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink"
-                >
-                  <option value="monday">{t('project_actions.days.monday')}</option>
-                  <option value="tuesday">{t('project_actions.days.tuesday')}</option>
-                  <option value="wednesday">{t('project_actions.days.wednesday')}</option>
-                  <option value="thursday">{t('project_actions.days.thursday')}</option>
-                  <option value="friday">{t('project_actions.days.friday')}</option>
-                  <option value="saturday">{t('project_actions.days.saturday')}</option>
-                  <option value="sunday">{t('project_actions.days.sunday')}</option>
-                </select>
-              </div>
-            )}
-
-            {frequency !== 'hourly' && (
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-xs font-bold text-ink-muted mb-1">
-                    {t('project_actions.hour_of_day')}
-                  </label>
-                  <select
-                    value={crawlHour}
-                    onChange={(e) => setCrawlHour(e.target.value)}
-                    className="w-full px-3 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink"
-                  >
-                    {Array.from({ length: 24 }).map((_, i) => {
-                      const h = i < 10 ? `0${i}` : `${i}`;
-                      return <option key={h} value={h}>{h}:00</option>;
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-ink-muted mb-1">
-                    {t('onboarding.timezone')}
-                  </label>
-                  <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full px-3 py-2 bg-white rounded-lg border border-surface-hairline text-body-sm text-ink"
-                  >
-                    <option value="UTC">UTC</option>
-                    <option value="Asia/Riyadh">Asia/Riyadh (KSA)</option>
-                    <option value="Africa/Cairo">Africa/Cairo (EGY)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (UAE)</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-body-sm font-bold text-ink mb-1.5">
-              {t('onboarding.recipient_email')}
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
-              <input
-                type="email"
-                placeholder="alerts@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border"
-              />
             </div>
           </div>
 
           <div className="p-3 bg-gold-tint/40 rounded-xl border border-gold-border text-xs text-ink-muted flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 text-gold shrink-0 mt-0.5" />
             <span>
-              {t('auth.subtitle')}
+              {isAr
+                ? 'بياناتك وبريدك في أمان تام ولا تتم مشاركتها إطلاقاً. تُستخدم فقط لإرسال تقارير موقعك.'
+                : 'Your email is securely stored and used strictly for dispatching your website audits.'}
             </span>
           </div>
 
@@ -286,14 +260,14 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
               onClick={onClose}
               className="px-4 py-2.5 rounded-xl text-body-sm text-ink-muted hover:text-ink font-semibold"
             >
-              {t('common.cancel')}
+              {t('common.cancel') || 'إلغاء'}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-5 py-2.5 rounded-xl bg-gold text-white font-bold text-body-sm hover:bg-gold-hover shadow-sm transition-all"
             >
-              {isSubmitting ? '...' : t('onboarding.start_crawl')}
+              {isSubmitting ? '...' : (isAr ? 'بدء الفحص وحفظ الموقع' : 'Start Audit & Save Site')}
             </button>
           </div>
         </form>

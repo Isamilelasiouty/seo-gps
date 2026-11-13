@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { resolveIssueTitle } from '../lib/siteCrawler';
+import { verifyIssueLive, markIssueResolved } from '../lib/snapshotManager';
 import {
   Search,
   Download,
@@ -17,6 +18,11 @@ import {
   Copy,
   EyeOff,
   Eye,
+  ListTodo,
+  Table as TableIcon,
+  Sparkles,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 
 export interface IssueItem {
@@ -44,37 +50,49 @@ export interface IssueItem {
 
 interface IssuesPageProps {
   issues?: IssueItem[];
+  projectId?: string;
   onIgnoreIssue?: (id: string, ignored: boolean) => void;
   onRecheckIssue?: (issue: IssueItem) => void;
 }
 
 export const IssuesPage: React.FC<IssuesPageProps> = ({
   issues = [],
+  projectId = 'default-project',
   onIgnoreIssue,
   onRecheckIssue,
 }) => {
   const { t, locale, dir } = useI18n();
   const isAr = locale !== 'en';
 
+  const [localIssues, setLocalIssues] = useState<IssueItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'new' | 'persisting' | 'resolved' | 'ignored'>('all');
-  const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'notice'>('all');
+  const [viewMode, setViewMode] = useState<'todo' | 'table'>('todo');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'resolved' | 'critical' | 'warning'>('all');
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verificationFeedback, setVerificationFeedback] = useState<{
+    id: string;
+    success: boolean;
+    reason: string;
+  } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const cleanIssues = (issues || [])
-    .filter((i) => i && i.checkId !== 'connection_timeout' && !i.url?.startsWith('/http'))
-    .map((i) => {
-      let rawUrl = (i.url || '').replace(/^\/+(https?:\/\/)/i, '$1');
-      try {
-        rawUrl = decodeURI(rawUrl);
-      } catch (e) {}
-      return {
-        ...i,
-        url: rawUrl,
-      };
-    });
+  // Sync incoming issues prop with local state and sanitize URLs
+  useEffect(() => {
+    const cleaned = (issues || [])
+      .filter((i) => i && i.checkId !== 'connection_timeout' && !i.url?.startsWith('/http'))
+      .map((i) => {
+        let rawUrl = (i.url || '').replace(/^\/+(https?:\/\/)/i, '$1');
+        try {
+          rawUrl = decodeURI(rawUrl);
+        } catch (e) {}
+        return {
+          ...i,
+          url: rawUrl,
+        };
+      });
+    setLocalIssues(cleaned);
+  }, [issues]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -82,445 +100,444 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const filteredIssues = cleanIssues.filter((iss) => {
+  // Live Re-Check & Verification Action
+  const handleVerifyAndMarkDone = async (issue: IssueItem) => {
+    setVerifyingId(issue.id);
+    setVerificationFeedback(null);
+
+    const result = await verifyIssueLive(issue.url, issue.checkId);
+    setVerifyingId(null);
+
+    if (result.verified) {
+      // Mark as resolved in local state
+      setLocalIssues((prev) =>
+        prev.map((iss) => (iss.id === issue.id ? { ...iss, status: 'resolved' } : iss))
+      );
+
+      // Persist across localStorage and Supabase
+      await markIssueResolved(projectId, issue.id, issue);
+
+      setVerificationFeedback({
+        id: issue.id,
+        success: true,
+        reason: result.reason || (isAr ? 'تم التحقق من الإصلاح بنجاح! الرابط يستجيب بصورة سليمة.' : 'Verified successfully! The URL is now responding properly.'),
+      });
+
+      if (onRecheckIssue) {
+        onRecheckIssue({ ...issue, status: 'resolved' });
+      }
+    } else {
+      setVerificationFeedback({
+        id: issue.id,
+        success: false,
+        reason: result.reason || (isAr ? 'تنبيه: المشكلة ما زالت قائمة على الموقع. يرجى التأكد من حفظ التعديلات وإعادة الفحص.' : 'Issue still persists on the target page. Please ensure fixes are saved and retry.'),
+      });
+    }
+  };
+
+  const totalCount = localIssues.length;
+  const resolvedCount = localIssues.filter((i) => i.status === 'resolved').length;
+  const pendingCount = totalCount - resolvedCount;
+  const criticalCount = localIssues.filter((i) => i.severity === 'critical' && i.status !== 'resolved').length;
+  const warningCount = localIssues.filter((i) => i.severity === 'warning' && i.status !== 'resolved').length;
+  const progressPercent = totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
+
+  const filteredIssues = localIssues.filter((iss) => {
     // 1. Tab filter
-    if (activeTab === 'new' && iss.status !== 'new') return false;
-    if (activeTab === 'persisting' && iss.status !== 'persisting' && iss.status !== 'reappeared') return false;
+    if (activeTab === 'pending' && iss.status === 'resolved') return false;
     if (activeTab === 'resolved' && iss.status !== 'resolved') return false;
-    if (activeTab === 'ignored' && iss.status !== 'ignored') return false;
+    if (activeTab === 'critical' && (iss.severity !== 'critical' || iss.status === 'resolved')) return false;
+    if (activeTab === 'warning' && (iss.severity !== 'warning' || iss.status === 'resolved')) return false;
 
-    // 2. Search query
+    // 2. Search
+    if (!searchTerm) return true;
     const resolvedTitle = resolveIssueTitle(iss, isAr);
-    const matchesSearch =
-      iss.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    return (
       resolvedTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      iss.title.toLowerCase().includes(searchTerm.toLowerCase());
-
-    // 3. Severity filter
-    const matchesSev = severityFilter === 'all' || iss.severity === severityFilter;
-
-    return matchesSearch && matchesSev;
+      iss.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      iss.checkId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   });
 
-  const handleValidate = () => {
-    setIsValidating(true);
-    setTimeout(() => {
-      setIsValidating(false);
-      if (selectedIssue && onRecheckIssue) {
-        onRecheckIssue(selectedIssue);
-      }
-    }, 1200);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'new':
+        return t('issues.new');
+      case 'persisting':
+        return t('issues.persisting');
+      case 'resolved':
+        return t('issues.resolved');
+      case 'ignored':
+        return t('issues.ignored');
+      default:
+        return status;
+    }
   };
 
   const handleExportCSV = () => {
     if (filteredIssues.length === 0) return;
     const csvContent =
       'data:text/csv;charset=utf-8,' +
-      ['URL,Issue,Severity,Status,Days Open,Is Baseline,Evidence,Suggestion']
+      ['URL,Issue,Severity,Status,Days Open']
         .concat(
           filteredIssues.map(
             (i) =>
-              `"${i.url}","${resolveIssueTitle(i, isAr)}","${i.severity}","${i.status}","${i.daysOpen || 0}","${
-                i.isBaseline ? 'Yes' : 'No'
-              }","${JSON.stringify(i.evidence || {}).replace(/"/g, '""')}","${JSON.stringify(
-                i.suggestion || {}
-              ).replace(/"/g, '""')}"`
+              `"${i.url}","${resolveIssueTitle(i, isAr)}","${i.severity}","${i.status}","${i.daysOpen || 0}"`
           )
         )
         .join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `seo_gps_issues_${activeTab}_${Date.now()}.csv`);
+    link.setAttribute('download', `seo-issues-${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Counts for tabs
-  const countNew = cleanIssues.filter((i) => i.status === 'new').length;
-  const countPersisting = cleanIssues.filter((i) => i.status === 'persisting' || i.status === 'reappeared').length;
-  const countResolved = cleanIssues.filter((i) => i.status === 'resolved').length;
-  const countIgnored = cleanIssues.filter((i) => i.status === 'ignored').length;
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'new':
-        return isAr ? 'جديدة' : 'NEW';
-      case 'resolved':
-        return isAr ? 'تم الحل' : 'RESOLVED';
-      case 'ignored':
-        return isAr ? 'متجاهلة' : 'IGNORED';
-      default:
-        return isAr ? 'مستمرة' : 'PERSISTING';
-    }
-  };
-
   return (
-    <div className="space-y-6 animate-in fade-in duration-300" dir={dir}>
-      {/* Title & Toolbar */}
+    <div className="space-y-6" dir={dir}>
+      {/* 1. Header & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-title-xl font-extrabold text-ink tracking-tight">
-            {t('issues.title')}
+          <h1 className="text-title-xl font-extrabold text-ink tracking-tight flex items-center gap-2.5">
+            <span>{isAr ? 'مركز معالجة المشاكل وقائمة المهام (Action To-Do)' : 'Issue Resolution & Action Checklist'}</span>
           </h1>
           <p className="text-body-sm text-ink-muted mt-1">
-            {t('issues.track_subtitle')}
+            {isAr
+              ? 'تتبع وإصلاح مشاكل الـ SEO مع ميزة الفحص والتحقق المباشر من الروابط بمجرد الضغط على تم الحل'
+              : 'Track and resolve technical SEO issues with live HTTP verification upon marking tasks as done.'}
           </p>
         </div>
 
-        {issues.length > 0 && (
-          <div className="flex items-center gap-3">
+        {/* View Switcher: To-Do vs Table */}
+        <div className="flex items-center gap-3">
+          <div className="bg-surface border border-surface-hairline p-1 rounded-xl flex items-center text-xs font-bold">
             <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-surface-hairline bg-white text-body-sm font-semibold text-ink hover:bg-surface transition-colors shadow-sm"
+              onClick={() => setViewMode('todo')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+                viewMode === 'todo'
+                  ? 'bg-gold text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
             >
-              <Download className="w-4 h-4 text-gold" />
-              <span>{t('issues.export_csv')}</span>
+              <ListTodo className="w-4 h-4" />
+              <span>{isAr ? 'قائمة المهام (To-Do)' : 'To-Do List'}</span>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+                viewMode === 'table'
+                  ? 'bg-gold text-white shadow-sm'
+                  : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              <TableIcon className="w-4 h-4" />
+              <span>{isAr ? 'الجدول التفصيلي' : 'Table View'}</span>
             </button>
           </div>
-        )}
+
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-surface hover:bg-surface-tint border border-surface-hairline text-ink font-bold rounded-xl text-xs transition-colors"
+          >
+            <Download className="w-4 h-4 text-ink-muted" />
+            <span>{isAr ? 'تصدير CSV' : 'Export'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Lifecycle Status Tabs */}
-      <div className="flex items-center gap-2 border-b border-surface-hairline pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'all'
-              ? 'bg-ink text-white shadow-sm'
-              : 'bg-surface text-ink-muted hover:text-ink border border-surface-hairline'
-          }`}
-        >
-          {t('issues.all_issues')} ({cleanIssues.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('new')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'new'
-              ? 'bg-rose-600 text-white shadow-sm'
-              : 'bg-surface text-rose-700 hover:text-rose-800 border border-surface-hairline'
-          }`}
-        >
-          <span>{t('issues.new_regressions')}</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-black">{countNew}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('persisting')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'persisting'
-              ? 'bg-amber-600 text-white shadow-sm'
-              : 'bg-surface text-amber-700 hover:text-amber-800 border border-surface-hairline'
-          }`}
-        >
-          <span>{t('issues.still_open')}</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-black">{countPersisting}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('resolved')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'resolved'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-surface text-emerald-700 hover:text-emerald-800 border border-surface-hairline'
-          }`}
-        >
-          <span>{t('issues.resolved')}</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-black">{countResolved}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('ignored')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            activeTab === 'ignored'
-              ? 'bg-ink-muted text-white shadow-sm'
-              : 'bg-surface text-ink-muted hover:text-ink border border-surface-hairline'
-          }`}
-        >
-          <span>{t('issues.ignored')}</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px] font-black">{countIgnored}</span>
-        </button>
-      </div>
-
-      {cleanIssues.length === 0 ? (
-        <div className="editorial-card p-12 text-center flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-severity-healthy-bg border border-severity-healthy-border flex items-center justify-center text-severity-healthy mb-4">
-            <CheckCircle2 className="w-8 h-8" />
+      {/* 2. Resolution Progress Overview Card */}
+      <div className="editorial-card p-5 bg-gradient-to-r from-surface to-gold-tint/20 border-surface-hairline">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gold uppercase tracking-wider">
+                {isAr ? 'معدل إنجاز إصلاح المشاكل' : 'Resolution Progress'}
+              </span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                {resolvedCount} {isAr ? 'تم التحقق وحلها' : 'Verified Fixed'}
+              </span>
+            </div>
+            <div className="text-title-lg font-black text-ink">
+              {progressPercent}% {isAr ? 'من إجمالي المشاكل المكتشفة تم إصلاحها' : 'of detected issues resolved'}
+            </div>
           </div>
-          <h3 className="text-title-md font-extrabold text-ink mb-2">
-            {t('empty_states.no_issues_title')}
+
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <div className="text-title-md font-black text-severity-critical">{criticalCount}</div>
+              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'حرجة متبقية' : 'Critical Open'}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-title-md font-black text-severity-warning">{warningCount}</div>
+              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'تحذيرات' : 'Warnings'}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-title-md font-black text-emerald-600">{resolvedCount}</div>
+              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'مكتملة' : 'Completed'}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Progress Bar */}
+        <div className="w-full bg-surface-hairline h-2.5 rounded-full mt-4 overflow-hidden">
+          <div
+            className="bg-emerald-600 h-full transition-all duration-500 rounded-full"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 3. Filter Tabs & Search Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { id: 'all', label: isAr ? 'جميع المهام' : 'All Tasks', count: totalCount },
+            { id: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending', count: pendingCount },
+            { id: 'critical', label: isAr ? 'حرجة' : 'Critical', count: criticalCount },
+            { id: 'warning', label: isAr ? 'تحذيرات' : 'Warnings', count: warningCount },
+            { id: 'resolved', label: isAr ? 'تم حلها بنجاح' : 'Resolved', count: resolvedCount },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'bg-ink text-white shadow-sm'
+                  : 'bg-surface text-ink-muted hover:text-ink border border-surface-hairline'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeTab === tab.id ? 'bg-white/20' : 'bg-surface-hairline'}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+          <input
+            type="text"
+            placeholder={isAr ? 'بحث بالرابط أو اسم المشكلة...' : 'Search URL or issue...'}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold"
+          />
+        </div>
+      </div>
+
+      {/* 4. Main Body: To-Do View vs Table View */}
+      {filteredIssues.length === 0 ? (
+        <div className="editorial-card p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-3">
+            <CheckCircle2 className="w-7 h-7" />
+          </div>
+          <h3 className="text-title-md font-bold text-ink mb-1">
+            {isAr ? 'لا توجد مشاكل مطابقة في هذا التصنيف' : 'No matching issues found'}
           </h3>
-          <p className="text-body-md text-ink-muted max-w-md">
-            {t('empty_states.no_issues_desc')}
+          <p className="text-body-sm text-ink-muted">
+            {isAr ? 'كافة المشاكل المحددة تم فحصها أو معالجتها بنجاح.' : 'All specified tasks have been verified or resolved.'}
           </p>
         </div>
-      ) : (
-        <>
-          {/* Filter Bar */}
-          <div className="editorial-card p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
-              <input
-                type="text"
-                placeholder={t('issues.search_placeholder')}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border text-xs"
-              />
-            </div>
+      ) : viewMode === 'todo' ? (
+        /* Actionable To-Do Checklist View */
+        <div className="space-y-3.5">
+          {filteredIssues.map((issue) => {
+            const isResolved = issue.status === 'resolved';
+            const isVerifying = verifyingId === issue.id;
+            const feedback = verificationFeedback?.id === issue.id ? verificationFeedback : null;
+            const title = resolveIssueTitle(issue, isAr);
 
-            <div className="flex items-center gap-2">
-              {(['all', 'critical', 'warning', 'notice'] as const).map((sev) => (
-                <button
-                  key={sev}
-                  onClick={() => setSeverityFilter(sev)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                    severityFilter === sev
-                      ? 'bg-ink text-white'
-                      : 'bg-surface text-ink-muted hover:text-ink border border-surface-hairline'
-                  }`}
-                >
-                  {t(`issues.${sev}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Issues Table */}
-          <div className="editorial-card overflow-hidden">
-            <table className="w-full border-collapse text-left rtl:text-right text-body-md">
-              <thead>
-                <tr className="bg-surface border-b border-surface-hairline text-xs font-bold text-ink-muted uppercase tracking-wider">
-                  <th className="py-3 px-4">{t('issues.severity')}</th>
-                  <th className="py-3 px-4">{t('issues.issue_type')}</th>
-                  <th className="py-3 px-4">{t('issues.affected_url')}</th>
-                  <th className="py-3 px-4">{t('issues.status_age')}</th>
-                  <th className="py-3 px-4 text-center">{t('issues.action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-hairline">
-                {filteredIssues.map((issue) => {
-                  const resolvedTitle = resolveIssueTitle(issue, isAr);
-                  return (
-                    <tr
-                      key={issue.id}
-                      onClick={() => setSelectedIssue(issue)}
-                      className="hover:bg-gold-tint/20 transition-colors cursor-pointer"
-                    >
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
-                            issue.severity === 'critical'
-                              ? 'bg-severity-critical-bg text-severity-critical'
-                              : issue.severity === 'warning'
-                              ? 'bg-severity-warning-bg text-severity-warning'
-                              : 'bg-severity-notice-bg text-severity-notice'
-                          }`}
-                        >
-                          {issue.severity === 'critical' ? (
-                            <AlertOctagon className="w-3.5 h-3.5" />
-                          ) : issue.severity === 'warning' ? (
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                          ) : (
-                            <Info className="w-3.5 h-3.5" />
-                          )}
-                          {t(`issues.${issue.severity}`)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-ink text-xs">
-                        {resolvedTitle}
-                      </td>
-                      <td className="py-3 px-4 text-ink-muted font-mono text-xs max-w-xs truncate">
-                        {(issue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}
-                      </td>
-                      <td className="py-3 px-4 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              issue.status === 'new'
-                                ? 'bg-rose-100 text-rose-800'
-                                : issue.status === 'resolved'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : issue.status === 'ignored'
-                                ? 'bg-surface text-ink-muted border'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {getStatusBadge(issue.status)}
-                          </span>
-                          {issue.daysOpen !== undefined && issue.daysOpen > 0 && (
-                            <span className="text-ink-muted text-[11px] font-medium">
-                              {issue.daysOpen} {t('issues.days_open')}
-                            </span>
-                          )}
-                          {issue.isBaseline && (
-                            <span className="text-gold font-bold text-[10px] bg-gold-tint px-1.5 py-0.5 rounded">
-                              {t('issues.baseline_badge')}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <ChevronRight className="w-4 h-4 text-ink-muted inline-block rtl:rotate-180" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* Row-Click Issue Detail Drawer with Structured Evidence & Suggested Fix */}
-      {selectedIssue && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-ink/20 backdrop-blur-sm flex justify-end">
-          <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col p-6 overflow-y-auto animate-in slide-in-from-right">
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-surface-hairline">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
-                    selectedIssue.severity === 'critical'
-                      ? 'bg-severity-critical-bg text-severity-critical'
-                      : selectedIssue.severity === 'warning'
-                      ? 'bg-severity-warning-bg text-severity-warning'
-                      : 'bg-severity-notice-bg text-severity-notice'
-                  }`}
-                >
-                  {t(`issues.${selectedIssue.severity}`)}
-                </span>
-                <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface border text-ink-muted">
-                  {getStatusBadge(selectedIssue.status)}
-                </span>
-                {selectedIssue.isBaseline && (
-                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-gold-tint text-gold border border-gold-border">
-                    {t('issues.since_baseline')}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setSelectedIssue(null)}
-                className="p-1 rounded-lg hover:bg-surface text-ink-muted"
+            return (
+              <div
+                key={issue.id}
+                className={`editorial-card p-5 transition-all border ${
+                  isResolved
+                    ? 'border-emerald-200 bg-emerald-50/30'
+                    : issue.severity === 'critical'
+                    ? 'border-rose-200 hover:border-rose-300'
+                    : issue.severity === 'warning'
+                    ? 'border-amber-200 hover:border-amber-300'
+                    : 'border-surface-hairline'
+                }`}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  {/* Left: Issue Content */}
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                          isResolved
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : issue.severity === 'critical'
+                            ? 'bg-rose-100 text-rose-800'
+                            : issue.severity === 'warning'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {isResolved ? (isAr ? 'تم الحل بنجاح' : 'Resolved') : issue.severity}
+                      </span>
 
-            {/* Drawer Body */}
-            <div className="my-6 space-y-6 flex-1">
-              <div>
-                <h3 className="text-title-md font-extrabold text-ink mb-2">
-                  {resolveIssueTitle(selectedIssue, isAr)}
-                </h3>
-                <a
-                  href={(selectedIssue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-body-sm text-gold hover:text-gold-hover flex items-center gap-1 font-mono text-xs break-all"
-                >
-                  <span>{(selectedIssue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}</span>
-                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                </a>
-              </div>
-
-              {/* Accuracy Evidence Block */}
-              <div className="editorial-card p-4 bg-surface space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-extrabold text-ink uppercase tracking-wider">
-                    {t('issues.audit_evidence')}
-                  </h4>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    {t('issues.two_step_confirmed')}
-                  </span>
-                </div>
-                <div className="bg-ink text-white p-3 rounded-lg font-mono text-xs overflow-x-auto max-h-48 scrollbar-thin">
-                  <pre>{JSON.stringify(selectedIssue.evidence || { url: selectedIssue.url, status: selectedIssue.status }, null, 2)}</pre>
-                </div>
-              </div>
-
-              {/* Suggested Fix Block */}
-              {selectedIssue.suggestion && (
-                <div className="editorial-card p-4 bg-gold-tint/20 border border-gold-border space-y-2">
-                  <h4 className="text-xs font-extrabold text-gold-hover uppercase tracking-wider flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-gold" />
-                    <span>{t('issues.suggested_fix')}</span>
-                  </h4>
-                  <p className="text-body-sm text-ink-light">
-                    {selectedIssue.suggestion.action || selectedIssue.suggestion.fix || JSON.stringify(selectedIssue.suggestion)}
-                  </p>
-                  {selectedIssue.suggestion.generated_jsonld && (
-                    <div className="pt-2">
-                      <div className="flex justify-between items-center text-xs font-bold text-ink-muted mb-1">
-                        <span>{isAr ? 'كود JSON-LD المولد:' : 'Generated JSON-LD:'}</span>
-                        <button
-                          onClick={() => copyToClipboard(selectedIssue.suggestion.generated_jsonld, 'drawer-json')}
-                          className="text-gold hover:underline flex items-center gap-1 text-xs"
-                        >
-                          {copiedKey === 'drawer-json' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedKey === 'drawer-json' ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ' : 'Copy')}</span>
-                        </button>
-                      </div>
-                      <pre className="bg-ink text-white p-3 rounded font-mono text-[11px] overflow-x-auto max-h-36">
-                        {selectedIssue.suggestion.generated_jsonld}
-                      </pre>
+                      <span className="text-xs font-mono text-ink-muted">
+                        ID: {issue.checkId}
+                      </span>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* History & Provenance */}
-              <div className="p-4 rounded-xl border border-surface-hairline text-xs space-y-2">
-                <div className="font-bold text-ink-muted uppercase tracking-wider">
-                  {isAr ? 'السجل والمصدر الأصلي' : 'Provenance & Timeline'}
-                </div>
-                <div className="flex justify-between text-ink">
-                  <span>{isAr ? 'تاريخ الاكتشاف لأول مرة:' : 'First Discovered:'}</span>
-                  <span className="font-bold">{selectedIssue.firstSeen}</span>
-                </div>
-                <div className="flex justify-between text-ink">
-                  <span>{isAr ? 'عدد الأيام مفتوحة:' : 'Days Open:'}</span>
-                  <span className="font-bold">{selectedIssue.daysOpen || 0} {t('issues.days_open')}</span>
-                </div>
-                <div className="flex justify-between text-ink">
-                  <span>{isAr ? 'مصدر الرابط:' : 'Origin Source:'}</span>
-                  <span className="font-bold text-gold">{selectedIssue.evidence?.source || 'internal_link'}</span>
+                    <h3 className={`text-body-md font-extrabold ${isResolved ? 'line-through text-ink-muted' : 'text-ink'}`}>
+                      {title}
+                    </h3>
+
+                    {/* URL */}
+                    <div className="flex items-center gap-1.5 text-xs text-ink-muted font-mono break-all">
+                      <a
+                        href={issue.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gold hover:underline flex items-center gap-1"
+                      >
+                        <span>{issue.url}</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+
+                    {/* Action Suggestion */}
+                    {issue.suggestion && (
+                      <div className="mt-2.5 p-3 rounded-lg bg-surface border border-surface-hairline text-xs text-ink space-y-1.5">
+                        <div className="font-bold text-gold flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{isAr ? 'طريقة الإصلاح المقترحة:' : 'Recommended Fix:'}</span>
+                        </div>
+                        <p className="text-ink-muted leading-relaxed">
+                          {issue.suggestion.action || issue.suggestion.fix || JSON.stringify(issue.suggestion)}
+                        </p>
+
+                        {issue.suggestion.generated_jsonld && (
+                          <div className="pt-2">
+                            <button
+                              onClick={() => copyToClipboard(issue.suggestion.generated_jsonld, `todo-json-${issue.id}`)}
+                              className="text-gold font-bold hover:underline flex items-center gap-1 text-[11px]"
+                            >
+                              {copiedKey === `todo-json-${issue.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedKey === `todo-json-${issue.id}` ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ كود JSON-LD المقترح' : 'Copy Suggested JSON-LD')}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live Verification Feedback Banner */}
+                    {feedback && (
+                      <div
+                        className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2 mt-2 animate-in fade-in ${
+                          feedback.success
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            : 'bg-rose-50 border-rose-300 text-rose-800'
+                        }`}
+                      >
+                        {feedback.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                        <span>{feedback.reason}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Verification Action Button */}
+                  <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
+                    {isResolved ? (
+                      <div className="flex items-center gap-1.5 px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>{isAr ? 'تم التحقق من الإصلاح' : 'Verified Fixed'}</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleVerifyAndMarkDone(issue)}
+                        disabled={isVerifying}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-gold hover:bg-gold-hover text-white font-extrabold rounded-xl text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isVerifying ? 'animate-spin' : ''}`} />
+                        <span>
+                          {isVerifying
+                            ? (isAr ? 'جاري الفحص المباشر...' : 'Verifying...')
+                            : (isAr ? 'فحص والتأكيد كمحلول' : 'Verify & Mark Done')}
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Detailed Table View */
+        <div className="editorial-card overflow-hidden">
+          <table className="w-full text-right rtl:text-right ltr:text-left text-body-sm">
+            <thead className="bg-surface border-b border-surface-hairline text-xs font-bold text-ink-muted uppercase">
+              <tr>
+                <th className="py-3 px-4">{t('issues.severity')}</th>
+                <th className="py-3 px-4">{t('issues.issue_name')}</th>
+                <th className="py-3 px-4">{t('issues.page_url')}</th>
+                <th className="py-3 px-4">{t('issues.status')}</th>
+                <th className="py-3 px-4 text-center">{isAr ? 'التحقق والإصلاح' : 'Verify Fix'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-hairline">
+              {filteredIssues.map((issue) => {
+                const isResolved = issue.status === 'resolved';
+                const isVerifying = verifyingId === issue.id;
 
-            {/* Actions: Re-check & Ignore */}
-            <div className="pt-4 border-t border-surface-hairline flex items-center gap-3">
-              <button
-                onClick={handleValidate}
-                disabled={isValidating}
-                className="flex-1 py-2.5 px-4 bg-gold text-white font-bold rounded-xl hover:bg-gold-hover flex items-center justify-center gap-2 shadow-sm transition-all text-xs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isValidating ? 'animate-spin' : ''}`} />
-                <span>{isValidating ? t('issues.validating') : t('issues.validate_now')}</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  if (onIgnoreIssue) {
-                    onIgnoreIssue(selectedIssue.id, selectedIssue.status !== 'ignored');
-                    setSelectedIssue(null);
-                  }
-                }}
-                className="py-2.5 px-4 bg-surface hover:bg-gold-tint/40 text-ink font-bold rounded-xl border border-surface-hairline flex items-center gap-1.5 text-xs transition-colors"
-              >
-                {selectedIssue.status === 'ignored' ? (
-                  <>
-                    <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{t('issues.unignore_issue')}</span>
-                  </>
-                ) : (
-                  <>
-                    <EyeOff className="w-3.5 h-3.5 text-ink-muted" />
-                    <span>{t('issues.ignore_issue')}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+                return (
+                  <tr key={issue.id} className="hover:bg-surface/50 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
+                          issue.severity === 'critical'
+                            ? 'bg-rose-100 text-rose-800'
+                            : issue.severity === 'warning'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {issue.severity}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-ink">
+                      {resolveIssueTitle(issue, isAr)}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-xs text-ink-muted max-w-xs truncate">
+                      <a href={issue.url} target="_blank" rel="noopener noreferrer" className="hover:text-gold hover:underline">
+                        {issue.url}
+                      </a>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${isResolved ? 'bg-emerald-100 text-emerald-800' : 'bg-surface text-ink-muted border'}`}>
+                        {getStatusBadge(issue.status)}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {isResolved ? (
+                        <span className="text-emerald-600 font-bold text-xs flex items-center justify-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{isAr ? 'محلول' : 'Done'}</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleVerifyAndMarkDone(issue)}
+                          disabled={isVerifying}
+                          className="px-3 py-1.5 bg-surface hover:bg-gold hover:text-white border border-surface-hairline text-ink font-bold rounded-lg text-xs transition-colors flex items-center gap-1 mx-auto"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isVerifying ? 'animate-spin' : ''}`} />
+                          <span>{isVerifying ? '...' : (isAr ? 'تحقق' : 'Verify')}</span>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

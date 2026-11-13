@@ -12,7 +12,7 @@ export interface RunEntry {
   id: string;
   date: string;
   time: string;
-  scanType?: 'baseline' | 'daily';
+  scanType?: 'baseline' | 'daily' | 'manual';
   healthScore: number;
   criticalCount: number;
   warningCount: number;

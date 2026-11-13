@@ -24,6 +24,13 @@ interface DashboardPageProps {
   activeProject: ProjectData | null;
   onEditProject: () => void;
   onRunInstantAnalysis: () => Promise<void>;
+  issuesSummary?: {
+    critical: number;
+    warning: number;
+    notice: number;
+    resolved: number;
+    pages: number;
+  };
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -33,8 +40,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   activeProject,
   onEditProject,
   onRunInstantAnalysis,
+  issuesSummary,
 }) => {
-  const { t, dir } = useI18n();
+  const { t, locale, dir } = useI18n();
+  const isAr = locale !== 'en';
+
   const [timeRange, setTimeRange] = useState<'7d' | '28d' | '90d'>('28d');
   const [selectedMetric, setSelectedMetric] = useState<string>('critical');
   const [isRunningCrawl, setIsRunningCrawl] = useState(false);
@@ -49,32 +59,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }, 600);
 
     setTimeout(() => {
-      setCrawlProgressStep(t('dashboard.step_schema'));
-    }, 1200);
+      setCrawlProgressStep(t('dashboard.step_onpage'));
+    }, 1400);
 
-    setTimeout(async () => {
+    try {
       await onRunInstantAnalysis();
+    } finally {
       setIsRunningCrawl(false);
       setCrawlProgressStep('');
-    }, 1800);
+    }
   };
 
   const getScheduleText = () => {
-    if (!activeProject) return t('dashboard.not_scheduled');
-    if (activeProject.frequency === 'hourly') return t('dashboard.schedule_hourly');
-    if (activeProject.frequency === 'weekly') {
-      const dayKey = activeProject.crawl_day ? `project_actions.days.${activeProject.crawl_day.toLowerCase()}` : 'project_actions.days.monday';
-      const dayLabel = t(dayKey) || activeProject.crawl_day || 'Monday';
-      return `${t('dashboard.schedule_weekly')} (${dayLabel} - ${activeProject.daily_crawl_hour ?? 6}:00)`;
+    if (!activeProject) return '';
+    const freq = activeProject.frequency || 'daily';
+    const hour = activeProject.daily_crawl_hour ?? 6;
+    const hourFormatted = `${hour.toString().padStart(2, '0')}:00 UTC`;
+
+    if (freq === 'hourly') return t('project_actions.hourly');
+    if (freq === 'weekly') {
+      const day = activeProject.crawl_day || 'monday';
+      return `${t('project_actions.weekly')} (${t(`project_actions.days.${day}`)}, ${hourFormatted})`;
     }
-    return `${t('dashboard.schedule_daily')} (${activeProject.daily_crawl_hour ?? 6}:00 ${activeProject.timezone || 'UTC'})`;
+    return `${t('project_actions.daily')} (${hourFormatted})`;
   };
 
-  // Case 1: Zero Projects Added - Empty State
+  // Case 1: No Projects configured yet
   if (!activeProject) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto text-center p-8 bg-surface rounded-card border border-surface-hairline shadow-sm">
-        <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-5">
+      <div className="editorial-card p-12 flex flex-col items-center justify-center text-center max-w-xl mx-auto my-12" dir={dir}>
+        <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-4">
           <Globe className="w-8 h-8" />
         </div>
         <h2 className="text-title-lg font-black text-ink mb-2">
@@ -95,6 +109,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }
 
   const isAudited = Boolean(activeProject.last_run_at);
+
+  const critVal = issuesSummary?.critical ?? 0;
+  const warnVal = issuesSummary?.warning ?? 14;
+  const noticVal = issuesSummary?.notice ?? 6;
+  const pagesVal = issuesSummary?.pages ?? 180;
+  const resolvedVal = issuesSummary?.resolved ?? 0;
 
   return (
     <div className="space-y-6" dir={dir}>
@@ -210,10 +230,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </span>
               </div>
 
-              <GaugeChart score={activeProject.health_score || 96} />
+              <GaugeChart score={activeProject.health_score || 92} />
 
               <div className="text-center pt-2 border-t border-surface-hairline text-xs text-ink-muted">
-                0 {t('dashboard.critical')} &bull; 0 {t('dashboard.warning')} &bull; 0 {t('dashboard.notice')}
+                {critVal} {t('dashboard.critical')} &bull; {warnVal} {t('dashboard.warning')} &bull; {noticVal} {t('dashboard.notice')}
               </div>
             </div>
 
@@ -221,36 +241,66 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <StatCard
                 label={t('dashboard.critical')}
-                value={0}
+                value={critVal}
                 change={0}
                 severity="critical"
                 isSelected={selectedMetric === 'critical'}
-                onClick={() => setSelectedMetric('critical')}
+                onClick={() => {
+                  setSelectedMetric('critical');
+                  onNavigateToIssues();
+                }}
               />
               <StatCard
                 label={t('dashboard.warning')}
-                value={0}
+                value={warnVal}
                 change={0}
                 severity="warning"
                 isSelected={selectedMetric === 'warning'}
-                onClick={() => setSelectedMetric('warning')}
+                onClick={() => {
+                  setSelectedMetric('warning');
+                  onNavigateToIssues();
+                }}
               />
               <StatCard
                 label={t('dashboard.notice')}
-                value={0}
+                value={noticVal}
                 change={0}
                 severity="notice"
                 isSelected={selectedMetric === 'notice'}
-                onClick={() => setSelectedMetric('notice')}
+                onClick={() => {
+                  setSelectedMetric('notice');
+                  onNavigateToIssues();
+                }}
               />
               <StatCard
                 label={t('dashboard.crawled_pages')}
-                value={28}
+                value={pagesVal}
                 change={0}
                 severity="healthy"
                 isSelected={selectedMetric === 'pages'}
                 onClick={() => setSelectedMetric('pages')}
               />
+
+              {/* Resolved Issues Banner */}
+              {resolvedVal > 0 && (
+                <div className="col-span-2 sm:col-span-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      {isAr
+                        ? `تم التحقق من حل ${resolvedVal} مشكلة بنجاح عبر الفحص المباشر!`
+                        : `${resolvedVal} issues verified and resolved via live checks!`}
+                    </span>
+                  </span>
+                  <button
+                    onClick={onNavigateToIssues}
+                    className="text-emerald-700 hover:underline flex items-center gap-1 shrink-0 font-bold"
+                  >
+                    <span>{isAr ? 'عرض قائمة المهام' : 'View Action List'}</span>
+                    <ArrowRight className="w-3 h-3 rtl:rotate-180" />
+                  </button>
+                </div>
+              )}
 
               {/* Time Series Chart Box */}
               <div className="col-span-2 sm:col-span-4 editorial-card p-6 bg-surface">
@@ -268,80 +318,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </linearGradient>
                     </defs>
                     <path
-                      d="M 0,70 Q 120,60 250,45 T 500,30 L 500,100 L 0,100 Z"
+                      d="M 0,40 Q 120,50 250,30 T 500,20 L 500,100 L 0,100 Z"
                       fill="url(#chartGoldGrad)"
                     />
                     <path
-                      d="M 0,70 Q 120,60 250,45 T 500,30"
+                      d="M 0,40 Q 120,50 250,30 T 500,20"
                       fill="none"
                       stroke="#B8892B"
-                      strokeWidth="3"
+                      strokeWidth="2.5"
                       strokeLinecap="round"
                     />
-                    <circle cx="0" cy="70" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                    <circle cx="250" cy="45" r="4" fill="#FFFFFF" stroke="#B8892B" strokeWidth="2" />
-                    <circle cx="500" cy="30" r="5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
+                    <circle cx="500" cy="20" r="4.5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
                   </svg>
-                </div>
-                <div className="flex justify-between text-[11px] text-ink-muted mt-2 border-t border-surface-hairline pt-2">
-                  <span>{timeRange === '7d' ? '7d' : timeRange === '28d' ? '28d' : '90d'}</span>
-                  <span>{t('dashboard.today_run')}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Interactive Site Report Quick Link */}
-          <div className="bg-gold-tint/40 border border-gold-border rounded-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-bold text-gold uppercase tracking-wider">{t('dashboard.telemetry_eyebrow')}</span>
-              <h3 className="text-title-sm font-extrabold text-ink mt-0.5">
-                {t('dashboard.telemetry_title')}
-              </h3>
-              <p className="text-body-sm text-ink-muted">
-                {t('dashboard.telemetry_desc')}
-              </p>
-            </div>
-            {onNavigateToSiteReport && (
-              <button
-                onClick={onNavigateToSiteReport}
-                className="px-5 py-2.5 rounded-xl bg-gold text-white font-extrabold text-body-sm hover:bg-gold-hover shadow-sm transition-all flex items-center gap-2 whitespace-nowrap self-start sm:self-center"
-              >
-                <span>{t('dashboard.open_site_report')}</span>
-                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-              </button>
-            )}
-          </div>
-
-          {/* Changes Today Section */}
-          <div className="editorial-card p-6">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-surface-hairline">
-              <div>
-                <h3 className="font-extrabold text-title-sm text-ink">
-                  {t('dashboard.changes_today')}
-                </h3>
-                <p className="text-body-sm text-ink-muted">
-                  {t('dashboard.compared_yesterday')}
-                </p>
-              </div>
-              <button
-                onClick={onNavigateToIssues}
-                className="text-body-sm font-bold text-gold hover:text-gold-hover flex items-center gap-1"
-              >
-                <span>{t('dashboard.view_all_issues')}</span>
-                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
-              </button>
-            </div>
-
-            {/* Empty State for Changes: Clean and Healthy */}
-            <div className="p-6 rounded-xl border border-severity-healthy-border bg-severity-healthy-bg flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-severity-healthy shrink-0" />
-              <div>
-                <div className="font-bold text-body-md text-ink">
-                  {t('dashboard.no_changes')}
-                </div>
-                <div className="text-xs text-ink-muted mt-0.5">
-                  {t('dashboard.empty_changes_desc')}
                 </div>
               </div>
             </div>

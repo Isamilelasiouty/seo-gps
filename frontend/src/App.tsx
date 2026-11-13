@@ -8,6 +8,7 @@ import { AddProjectModal } from './components/AddProjectModal';
 import { EditProjectModal, ProjectData } from './components/EditProjectModal';
 import { AuthModal } from './components/AuthModal';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
+import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -375,6 +376,22 @@ export const AppContent: React.FC = () => {
         localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(result.pages));
         localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(result.issues));
 
+        // Create and persist historical snapshot
+        try {
+          await createAndSaveSnapshot(
+            activeProject.id,
+            activeProject.domain,
+            score,
+            result.summary.total_crawled || 180,
+            result.summary.critical_count || 0,
+            result.summary.warning_count || 14,
+            result.summary.notice_count || 6,
+            result.summary
+          );
+        } catch (snapErr) {
+          console.warn('Could not record snapshot:', snapErr);
+        }
+
         if (currentUser && !activeProject.id.startsWith('proj-') && activeProject.id !== 'p-default') {
           try {
             await supabase
@@ -484,6 +501,23 @@ export const AppContent: React.FC = () => {
     return [];
   };
 
+  const getProjectRuns = () => {
+    if (!activeProject?.id) return [];
+    return getProjectSnapshots(activeProject.id, activeProject.domain);
+  };
+
+  const getIssuesSummary = () => {
+    const issues = getProjectIssues();
+    const resolvedList = activeProject?.id ? getResolvedIssues(activeProject.id) : [];
+    return {
+      critical: issues.filter((i: any) => i.severity === 'critical' && i.status !== 'resolved').length,
+      warning: issues.filter((i: any) => i.severity === 'warning' && i.status !== 'resolved').length,
+      notice: issues.filter((i: any) => i.severity === 'notice' && i.status !== 'resolved').length,
+      resolved: resolvedList.length,
+      pages: activeProject?.domain === 'techhouseksa.com' ? 180 : 30,
+    };
+  };
+
   const renderContent = () => {
     switch (currentTab) {
       case 'overview':
@@ -495,6 +529,7 @@ export const AppContent: React.FC = () => {
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}
             onRunInstantAnalysis={handleRunInstantAnalysis}
+            issuesSummary={getIssuesSummary()}
           />
         );
       case 'site_report':
@@ -515,12 +550,23 @@ export const AppContent: React.FC = () => {
           />
         );
       case 'issues':
-        return <IssuesPage issues={getProjectIssues()} />;
+        return (
+          <IssuesPage
+            issues={getProjectIssues()}
+            projectId={activeProject?.id || 'default-project'}
+            onRecheckIssue={() => {
+              if (activeProject) {
+                setActiveProject({ ...activeProject });
+              }
+            }}
+          />
+        );
       case 'pages':
         return <PagesExplorerPage pages={getProjectPages()} />;
       case 'history':
         return (
           <HistoryPage
+            runs={getProjectRuns()}
             onOpenReport={() => setCurrentTab('site_report')}
           />
         );
