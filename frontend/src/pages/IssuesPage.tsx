@@ -316,7 +316,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                         {resolvedTitle}
                       </td>
                       <td className="py-3 px-4 text-ink-muted font-mono text-xs max-w-xs truncate">
-                        {issue.url}
+                        {(issue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}
                       </td>
                       <td className="py-3 px-4 text-xs">
                         <div className="flex items-center gap-2">
@@ -399,12 +399,12 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                   {resolveIssueTitle(selectedIssue, isAr)}
                 </h3>
                 <a
-                  href={selectedIssue.url}
+                  href={(selectedIssue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-body-sm text-gold hover:text-gold-hover flex items-center gap-1 font-mono text-xs break-all"
                 >
-                  <span>{selectedIssue.url}</span>
+                  <span>{(selectedIssue.url || '').replace(/^\/+(https?:\/\/)/i, '$1')}</span>
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 </a>
               </div>

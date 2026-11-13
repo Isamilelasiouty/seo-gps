@@ -5,6 +5,7 @@ import { GaugeChart } from '../components/GaugeChart';
 import { resolveTopFix, resolveCannibalization, executeSiteCrawl, getFixtureReport, getDomainAuditResult } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import { supabase } from '../lib/supabase';
+import { saveLead, getLeadsCount } from '../lib/leadTracker';
 import {
   Sparkles,
   Download,
@@ -30,6 +31,8 @@ import {
   ChevronDown,
   Mail,
   X,
+  Users,
+  User,
 } from 'lucide-react';
 
 interface SiteReportPageProps {
@@ -52,6 +55,8 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailInput, setEmailInput] = useState(activeProject?.recipient_email || '');
+  const [nameInput, setNameInput] = useState('');
+  const [subscriberCount, setSubscriberCount] = useState<number>(() => getLeadsCount());
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailFeedback, setEmailFeedback] = useState('');
 
@@ -150,6 +155,10 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
     exportReportCSV(reportData, domain, selectedScanType);
   };
 
+  const handleExportPrint = () => {
+    window.print();
+  };
+
   const handleExportHTML = () => {
     exportStandaloneHTMLReport(reportData, domain, isAr);
   };
@@ -157,9 +166,23 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanEmail = emailInput.trim();
+    const cleanName = nameInput.trim() || cleanEmail.split('@')[0];
     if (!cleanEmail || !cleanEmail.includes('@') || !reportData) return;
     setIsSendingEmail(true);
     setEmailFeedback('');
+
+    // A. Persist lead immediately (stored in local storage and synced to database)
+    try {
+      await saveLead({
+        name: cleanName,
+        email: cleanEmail,
+        domain,
+        source: 'site_report',
+      });
+      setSubscriberCount(getLeadsCount());
+    } catch (e) {
+      console.warn('Could not save lead:', e);
+    }
 
     let sent = false;
     let isSandboxBlocked = false;
@@ -172,6 +195,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: cleanEmail,
+          userName: cleanName,
           domain,
           rootUrl,
           healthScore: reportData.summary?.health_score || 92,
@@ -203,6 +227,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
           body: {
             type: 'audit_report',
             recipient: cleanEmail,
+            userName: cleanName,
             domain,
             rootUrl,
             healthScore: reportData.summary?.health_score || 92,
@@ -216,8 +241,9 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
         if (!error && (data?.success || data?.id)) {
           sent = true;
           deliveredId = data?.id;
-        } else if (data?.isSandboxRestriction) {
-          isSandboxBlocked = true;
+          if (data?.isSandboxRestriction) {
+            isSandboxBlocked = true;
+          }
         }
       } catch (err) {}
     }
@@ -232,23 +258,17 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
       } catch (e) {}
     }
 
-    if (sent) {
+    if (sent && !isSandboxBlocked) {
       setEmailFeedback(
         isAr
-          ? `تم إرسال نسخة من التقرير بنجاح عبر Resend إلى: ${cleanEmail}`
-          : `Report successfully dispatched via Resend to: ${cleanEmail}`
-      );
-    } else if (isSandboxBlocked) {
-      setEmailFeedback(
-        isAr
-          ? `تم حفظ التقرير وتسجيل البريد (${cleanEmail}) لمراقبة الموقع بنجاح! تنبيه: إرسال الإيميلات الخارجية يتطلب تفعيل دومين مخصص في Resend (resend.com/domains). يمكنك تحميل التقرير الكامل فوراً الآن بصيغة PDF أو HTML.`
-          : `Report saved & email (${cleanEmail}) registered for monitoring! Note: Sending to external domains requires verifying your domain on Resend (resend.com/domains). You can download your complete report right now via PDF or HTML below.`
+          ? `✅ تم إرسال نسخة من التقرير بنجاح إلى: ${cleanEmail}`
+          : `✅ Report successfully dispatched to: ${cleanEmail}`
       );
     } else {
       setEmailFeedback(
         isAr
-          ? `تم تسجيل البريد (${cleanEmail}) لمراقبة الموقع وتلقي التقارير الدورية بنجاح. يمكنك أيضًا تحميل التقرير فورًا عبر أزرار التحميل أدناه.`
-          : `Email (${cleanEmail}) registered for ongoing scheduled monitoring. You can also download the complete report instantly below.`
+          ? `✅ تم تسجيل بياناتك وبريدك (${cleanEmail}) لمراقبة الموقع بنجاح! تم حفظ طلبك وإرسال إشعار للإدارة. يمكنك أيضًا تحميل التقرير الكامل فورًا بصيغة PDF أو HTML عبر الأزرار أدناه:`
+          : `✅ Your details and email (${cleanEmail}) have been registered for automated monitoring! You can also download your full report immediately via PDF or HTML below:`
       );
     }
     setIsSendingEmail(false);
@@ -1069,23 +1089,75 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* Subscriber counter badge */}
+            <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-gold-tint/40 border border-gold-border/60 text-xs text-ink font-semibold">
+              <Users className="w-4 h-4 text-gold shrink-0" />
+              <span>
+                {isAr
+                  ? `إجمالي المشتركين المسجلين: ${subscriberCount} مستخدم يراقبون مواقعهم عبر المنصة.`
+                  : `Total registered subscribers: ${subscriberCount} professionals monitoring their sites.`}
+              </span>
+            </div>
+
             <form onSubmit={handleSendEmail} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-ink mb-1.5">
+                  {isAr ? 'الاسم الكامل' : 'Full Name'}
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-ink-muted absolute start-3 top-3" />
+                  <input
+                    type="text"
+                    required
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder={isAr ? 'مثال: محمد أحمد' : 'e.g. John Doe'}
+                    className="w-full ps-10 pe-3.5 py-2.5 rounded-xl border border-surface-hairline bg-surface text-ink text-body-sm focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-ink mb-1.5">
                   {isAr ? 'البريد الإلكتروني' : 'Email Address'}
                 </label>
-                <input
-                  type="email"
-                  required
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-surface-hairline bg-surface text-ink text-body-sm focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
-                />
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-ink-muted absolute start-3 top-3" />
+                  <input
+                    type="email"
+                    required
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full ps-10 pe-3.5 py-2.5 rounded-xl border border-surface-hairline bg-surface text-ink text-body-sm focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold"
+                  />
+                </div>
               </div>
+
               {emailFeedback && (
-                <div className="p-3 rounded-lg bg-gold-tint/40 border border-gold-border text-xs font-bold text-gold">
-                  {emailFeedback}
+                <div className="space-y-3 p-3.5 rounded-xl bg-gold-tint/40 border border-gold-border">
+                  <div className="text-xs font-bold text-ink leading-relaxed">
+                    {emailFeedback}
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-gold-border/50">
+                    <button
+                      type="button"
+                      onClick={handleExportPrint}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold text-white text-xs font-bold hover:bg-gold-hover shadow-sm"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'تحميل التقرير PDF' : 'Download PDF Report'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportHTML}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-ink text-xs font-bold hover:border-gold"
+                    >
+                      <Code className="w-3.5 h-3.5 text-gold" />
+                      <span>{isAr ? 'تحميل التقرير HTML' : 'Download HTML Report'}</span>
+                    </button>
+                  </div>
                 </div>
               )}
               <div className="flex items-center justify-end gap-2 pt-2">

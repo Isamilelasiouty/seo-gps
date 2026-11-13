@@ -14,6 +14,7 @@ Coordinates:
 import asyncio
 import os
 import sys
+import httpx
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
@@ -250,6 +251,24 @@ async def run_audit_for_project(
                 email_policy=project.get("email_policy", "send_every_run"),
                 dashboard_url=f"{frontend_url}/#/",
             )
+
+    # Update Supabase projects record with last_run_at and health_score
+    supa_url = os.getenv("SUPABASE_URL")
+    supa_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if supa_url and supa_key and project_id and project_id != "local_project":
+        try:
+            headers = {"apikey": supa_key, "Authorization": f"Bearer {supa_key}", "Content-Type": "application/json"}
+            update_payload = {
+                "last_run_at": now_dt.isoformat(),
+                "health_score": health_score,
+                "status": "active",
+            }
+            async with httpx.AsyncClient(timeout=10) as c:
+                res = await c.patch(f"{supa_url}/rest/v1/projects?id=eq.{project_id}", headers=headers, json=update_payload)
+                if res.status_code in (200, 204):
+                    print(f"[SEO GPS] Successfully updated Supabase project {project_id} last_run_at to {now_dt.isoformat()}")
+        except Exception as e:
+            print(f"[SEO GPS] Note: Could not sync last_run_at to Supabase: {e}")
 
     print(f"[SEO GPS] Audit run finished for {domain}. Scan ID: {scan_id}")
     return {

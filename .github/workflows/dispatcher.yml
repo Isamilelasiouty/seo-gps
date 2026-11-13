@@ -37,7 +37,7 @@ jobs:
         run: |
           python - << 'EOF'
           import os, json, httpx
-          from datetime import datetime
+          from datetime import datetime, timezone
           
           url = os.environ.get("SUPABASE_URL")
           key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -53,7 +53,38 @@ jobs:
                   resp = httpx.get(f"{url}/rest/v1/projects?status=eq.active&select=*,project_settings(*)", headers=headers)
               if resp.status_code == 200:
                   raw_projects = resp.json()
+                  current_utc = datetime.now(timezone.utc)
+                  current_hour = current_utc.hour
+
                   for p in raw_projects:
+                      domain = p.get("domain", "")
+
+                      # Enforce strictly ONCE PER DAY:
+                      if not single_id:
+                          # 1. If project ran in the last 20 hours, SKIP
+                          last_run = p.get("last_run_at")
+                          if last_run:
+                              try:
+                                  last_dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+                                  hours_ago = (current_utc - last_dt).total_seconds() / 3600.0
+                                  if hours_ago < 20.0:
+                                      print(f"[Dispatcher] Skip {domain}: Already ran {hours_ago:.1f} hours ago (once-per-day rule)")
+                                      continue
+                              except Exception as e:
+                                  print(f"[Dispatcher] Error parsing last_run_at for {domain}: {e}")
+
+                          # 2. Daily crawl hour matching (default: 3 AM UTC if not set)
+                          target_hour = p.get("daily_crawl_hour")
+                          if target_hour is None:
+                              target_hour = 3
+
+                          is_scheduled_hour = (current_hour == int(target_hour))
+                          is_first_run = (last_run is None)
+
+                          if not (is_scheduled_hour or is_first_run):
+                              print(f"[Dispatcher] Skip {domain}: Current hour {current_hour} != scheduled hour {target_hour}")
+                              continue
+
                       settings = p.get("project_settings")
                       recipients = []
                       if isinstance(settings, list) and len(settings) > 0:

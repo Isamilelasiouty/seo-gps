@@ -4,6 +4,7 @@ import { GaugeChart } from '../components/GaugeChart';
 import { supabase } from '../lib/supabase';
 import { FullAuditResult, resolveCannibalization, resolveTopFix, executeSiteCrawl } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
+import { saveLead, getLeadsCount } from '../lib/leadTracker';
 import {
   Sparkles,
   Globe,
@@ -20,6 +21,8 @@ import {
   Download,
   Printer,
   ChevronDown,
+  Users,
+  User,
 } from 'lucide-react';
 
 interface QuickAuditPageProps {
@@ -42,6 +45,8 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
   const [rootUrl, setRootUrl] = useState(activeProject?.root_url || '');
   const [sitemapUrl, setSitemapUrl] = useState(activeProject?.sitemap_url || '');
   const [recipientEmail, setRecipientEmail] = useState(activeProject?.recipient_email || '');
+  const [recipientName, setRecipientName] = useState('');
+  const [subscriberCount, setSubscriberCount] = useState<number>(() => getLeadsCount());
   const [emailError, setEmailError] = useState('');
   const [isAuditing, setIsAuditing] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
@@ -178,12 +183,28 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
       // Mandatory Email delivery via Resend / Edge Function
       let sentEmail = false;
       let isSandboxBlocked = false;
+      const cleanName = recipientName.trim() || cleanEmail.split('@')[0];
+
+      // Save lead immediately
+      try {
+        await saveLead({
+          name: cleanName,
+          email: cleanEmail,
+          domain: resultData.domain,
+          source: 'quick_audit',
+        });
+        setSubscriberCount(getLeadsCount());
+      } catch (leadErr) {
+        console.warn('Could not save lead in quick audit:', leadErr);
+      }
+
       try {
         const emailRes = await fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipient: cleanEmail,
+            userName: cleanName,
             domain: resultData.domain,
             rootUrl: cleanRoot,
             healthScore: resultData.summary?.health_score || 92,
@@ -211,6 +232,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
             body: {
               type: 'audit_report',
               recipient: cleanEmail,
+              userName: cleanName,
               domain: resultData.domain,
               rootUrl: cleanRoot,
               healthScore: resultData.summary?.health_score || 92,
@@ -311,30 +333,63 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
           </div>
         </div>
 
-        {/* Mandatory Email input for report delivery and site monitoring */}
-        <div className="pt-3 border-t border-surface-hairline space-y-1.5">
-          <label className="block text-body-sm font-bold text-ink">
-            {t('quick_audit.mandatory_email_label')} <span className="text-severity-critical">*</span>
-          </label>
+        {/* Subscriber counter badge */}
+        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gold-tint/40 border border-gold-border/60 text-xs text-ink font-semibold">
+          <Users className="w-4 h-4 text-gold shrink-0" />
+          <span>
+            {isAr
+              ? `إجمالي المشتركين المسجلين لمراقبة المواقع: ${subscriberCount} مستخدم.`
+              : `Total registered subscribers for automated monitoring: ${subscriberCount} users.`}
+          </span>
+        </div>
+
+        {/* Mandatory Name & Email input for report delivery and site monitoring */}
+        <div className="pt-3 border-t border-surface-hairline space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">
+                {isAr ? 'الاسم الكامل' : 'Full Name'} <span className="text-severity-critical">*</span>
+              </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-gold absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+                <input
+                  type="text"
+                  required
+                  placeholder={isAr ? 'اسمك أو اسم المؤسسة' : 'Your name or organization'}
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-gold/30 focus:border-gold-border"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-body-sm font-bold text-ink mb-1">
+                {t('quick_audit.mandatory_email_label')} <span className="text-severity-critical">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-gold absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
+                <input
+                  type="email"
+                  required
+                  placeholder={t('quick_audit.email_placeholder')}
+                  value={recipientEmail}
+                  onChange={(e) => {
+                    setRecipientEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  className={`w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-gold/30 ${
+                    emailError ? 'border-rose-400 bg-rose-50/30' : 'border-surface-hairline focus:border-gold-border'
+                  }`}
+                />
+              </div>
+            </div>
+          </div>
+
           <p className="text-body-xs text-ink-muted leading-relaxed">
             {t('quick_audit.mandatory_email_desc')}
           </p>
-          <div className="relative max-w-md mt-1">
-            <Mail className="w-4 h-4 text-gold absolute left-3 top-1/2 -translate-y-1/2 rtl:left-auto rtl:right-3" />
-            <input
-              type="email"
-              required
-              placeholder={t('quick_audit.email_placeholder')}
-              value={recipientEmail}
-              onChange={(e) => {
-                setRecipientEmail(e.target.value);
-                if (emailError) setEmailError('');
-              }}
-              className={`w-full pl-9 pr-4 py-2.5 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border text-body-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-gold/30 ${
-                emailError ? 'border-rose-400 bg-rose-50/30' : 'border-surface-hairline focus:border-gold-border'
-              }`}
-            />
-          </div>
+
           {emailError && (
             <div className="text-xs font-bold text-rose-600 mt-1 flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" />
