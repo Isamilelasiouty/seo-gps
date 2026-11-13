@@ -333,16 +333,6 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
           </div>
         </div>
 
-        {/* Subscriber counter badge */}
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gold-tint/40 border border-gold-border/60 text-xs text-ink font-semibold">
-          <Users className="w-4 h-4 text-gold shrink-0" />
-          <span>
-            {isAr
-              ? `إجمالي المشتركين المسجلين لمراقبة المواقع: ${subscriberCount} مستخدم.`
-              : `Total registered subscribers for automated monitoring: ${subscriberCount} users.`}
-          </span>
-        </div>
-
         {/* Mandatory Name & Email input for report delivery and site monitoring */}
         <div className="pt-3 border-t border-surface-hairline space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

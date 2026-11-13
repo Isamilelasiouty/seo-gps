@@ -1,0 +1,28 @@
+name: Deploy Supabase Functions
+
+on:
+  push:
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy send-audit-report Edge Function
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: |
+          supabase functions deploy send-audit-report --project-ref jsecwswvpourtqtafznr --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

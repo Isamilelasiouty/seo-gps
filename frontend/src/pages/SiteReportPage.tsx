@@ -1090,16 +1090,6 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
               </div>
             </div>
 
-            {/* Subscriber counter badge */}
-            <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-gold-tint/40 border border-gold-border/60 text-xs text-ink font-semibold">
-              <Users className="w-4 h-4 text-gold shrink-0" />
-              <span>
-                {isAr
-                  ? `إجمالي المشتركين المسجلين: ${subscriberCount} مستخدم يراقبون مواقعهم عبر المنصة.`
-                  : `Total registered subscribers: ${subscriberCount} professionals monitoring their sites.`}
-              </span>
-            </div>
-
             <form onSubmit={handleSendEmail} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-ink mb-1.5">
