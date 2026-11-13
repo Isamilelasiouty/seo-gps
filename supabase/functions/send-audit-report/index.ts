@@ -55,6 +55,7 @@ serve(async (req) => {
         targetUrl = "https://" + targetUrl.replace(/^\/+/, "");
       }
       const checkId = (body.checkId || "").toLowerCase();
+      const isAr = (body.locale || body.lang || "ar") !== "en";
 
       try {
         const probeRes = await fetch(targetUrl, {
@@ -72,50 +73,95 @@ serve(async (req) => {
 
         if (checkId.includes("404") || checkId.includes("broken") || checkId.includes("status")) {
           if (status >= 200 && status < 400) {
-            verified = true;
-            reason = `تم فحص الرابط بنجاح: كود الاستجابة الحالي هو ${status} OK (تم إصلاح الخطأ 404)`;
+            const isSoft404 =
+              htmlText.includes("404") &&
+              (htmlText.includes("not found") ||
+                htmlText.includes("غير موجودة") ||
+                htmlText.includes("الصفحة غير متوفرة") ||
+                htmlText.includes("Page Not Found"));
+            if (isSoft404) {
+              verified = false;
+              reason = isAr
+                ? "لم يتم حل المشكلة: ما زالت الصفحة تعرض رسالة 404 (الصفحة غير موجودة) للمستخدمين"
+                : "Issue not resolved: The page is still displaying a 404 Not Found error message to visitors";
+            } else {
+              verified = true;
+              reason = isAr
+                ? `تم فحص الرابط بنجاح: كود الاستجابة الحالي هو ${status} OK (تم إصلاح الخطأ 404)`
+                : `URL probed successfully: Current status code is ${status} OK (404 error resolved)`;
+            }
           } else {
-            reason = `ما زال الرابط يرجع كود خطأ ${status}`;
+            verified = false;
+            reason = isAr
+              ? `لم يتم حل المشكلة: ما زال الرابط يرجع كود خطأ (${status})`
+              : `Issue not resolved: The URL still returns an error status code (${status})`;
           }
         } else if (checkId.includes("title")) {
           const titleMatch = htmlText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
           const titleVal = titleMatch ? titleMatch[1].trim() : "";
-          if (titleVal.length > 0) {
+          if (titleVal.length > 3) {
             verified = true;
-            reason = `تم اكتشاف عنوان الصفحة بنجاح: "${titleVal.slice(0, 35)}..."`;
+            reason = isAr
+              ? `تم اكتشاف عنوان الصفحة بنجاح: "${titleVal.slice(0, 35)}..."`
+              : `Page title detected successfully: "${titleVal.slice(0, 35)}..."`;
           } else {
-            reason = "ما زال عنوان الصفحة (Title) مفقوداً في الكود المصدري";
+            verified = false;
+            reason = isAr
+              ? "لم يتم حل المشكلة: ما زال عنوان الصفحة (Title) مفقوداً أو فارغاً في الكود المصدري"
+              : "Issue not resolved: Page title tag is still missing or empty in source code";
           }
         } else if (checkId.includes("desc")) {
-          const hasDesc = /<meta[^>]+name=["']description["'][^>]+content=["'][^"']+["']/i.test(htmlText);
-          if (hasDesc) {
+          const descMatch = htmlText.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+          const descVal = descMatch ? descMatch[1].trim() : "";
+          if (descVal.length > 5) {
             verified = true;
-            reason = "تم التحقق من وجود الوصف التعريفي (Meta Description) بنجاح";
+            reason = isAr
+              ? "تم التحقق من وجود الوصف التعريفي (Meta Description) بنجاح"
+              : "Meta description tag verified successfully in HTML header";
           } else {
-            reason = "ما زال الوصف التعريفي مفقوداً في الصفحة";
+            verified = false;
+            reason = isAr
+              ? "لم يتم حل المشكلة: ما زال الوصف التعريفي مفقوداً في الصفحة"
+              : "Issue not resolved: Meta description tag is still missing on the page";
           }
         } else if (checkId.includes("h1")) {
-          const hasH1 = /<h1[^>]*>[\s\S]*?<\/h1>/i.test(htmlText);
-          if (hasH1) {
+          const h1Match = htmlText.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+          const h1Val = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").trim() : "";
+          if (h1Val.length > 0) {
             verified = true;
-            reason = "تم التحقق من وجود وسم العنوان الرئيسي (H1)";
+            reason = isAr
+              ? "تم التحقق من وجود وسم العنوان الرئيسي (H1)"
+              : "Primary H1 heading tag verified successfully";
           } else {
-            reason = "ما زال وسم H1 مفقوداً في الصفحة";
+            verified = false;
+            reason = isAr
+              ? "لم يتم حل المشكلة: ما زال وسم H1 مفقوداً في الصفحة"
+              : "Issue not resolved: Primary H1 heading tag is still missing on the page";
           }
         } else if (checkId.includes("schema")) {
           const hasSchema = htmlText.includes("application/ld+json");
           if (hasSchema) {
             verified = true;
-            reason = "تم التحقق من وجود بيانات Schema المنظمة داخل الصفحة";
+            reason = isAr
+              ? "تم التحقق من وجود بيانات Schema المنظمة داخل الصفحة"
+              : "Structured Schema data (JSON-LD) verified successfully";
           } else {
-            reason = "لم يتم العثور على كود Schema صالح في الصفحة";
+            verified = false;
+            reason = isAr
+              ? "لم يتم حل المشكلة: لم يتم العثور على كود Schema صالح في الصفحة"
+              : "Issue not resolved: No valid Schema structured data found on the page";
           }
         } else {
           if (status >= 200 && status < 400) {
             verified = true;
-            reason = `الرابط يعمل بنجاح ويستجيب بكود ${status} OK`;
+            reason = isAr
+              ? `الرابط يعمل بنجاح ويستجيب بكود ${status} OK`
+              : `URL is working properly and responding with status ${status} OK`;
           } else {
-            reason = `الرابط ما زال يرجع كود ${status}`;
+            verified = false;
+            reason = isAr
+              ? `لم يتم حل المشكلة: الرابط ما زال يرجع كود ${status}`
+              : `Issue not resolved: The target URL is still returning status code ${status}`;
           }
         }
 

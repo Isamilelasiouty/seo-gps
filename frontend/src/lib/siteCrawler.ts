@@ -305,19 +305,19 @@ export function resolveIssueTitle(
   const id = issue.checkId || '';
   if (id === 'http_status_404') return isAr ? 'صفحة مفقودة (كود 404)' : 'Broken Page (HTTP 404 Not Found)';
   if (id === 'http_status_5xx') return isAr ? 'خطأ في الخادم (5xx)' : 'Server Error (HTTP 5xx)';
-  if (id === 'soft_404') return isAr ? 'خطأ ناعم Soft 404 (كود 200 مع رسالة خطأ)' : 'Soft 404 (200 OK with Not Found content)';
+  if (id === 'soft_404') return isAr ? 'خطأ ناعم (كود 200 مع رسالة محتوى مفقود)' : 'Soft 404 (200 OK with Not Found content)';
   if (id === 'redirect_status') return isAr ? 'تحويل صفحة (3xx)' : 'Page Redirect (3xx)';
-  if (id === 'meta_noindex') return isAr ? 'وسم Noindex يمنع أرشفة الصفحة' : 'Noindex directive blocks indexing';
-  if (id === 'title_missing') return isAr ? 'عنوان الصفحة (Title Tag) مفقود' : 'Missing Title tag';
+  if (id === 'meta_noindex') return isAr ? 'وسم منع الأرشفة يمنع فهرسة الصفحة' : 'Noindex directive blocks indexing';
+  if (id === 'title_missing') return isAr ? 'عنوان الصفحة مفقود' : 'Missing Title tag';
   if (id === 'title_too_long') return isAr ? 'عنوان الصفحة طويل جداً' : 'Title tag too long';
   if (id === 'title_too_short') return isAr ? 'عنوان الصفحة قصير جداً' : 'Title tag too short';
-  if (id === 'meta_description_missing') return isAr ? 'وصف الميتا (Meta Description) مفقود' : 'Missing Meta Description tag';
+  if (id === 'meta_description_missing') return isAr ? 'الوصف التعريفي للصفحة مفقود' : 'Missing Meta Description tag';
   if (id === 'h1_missing') return isAr ? 'وسم H1 مفقود في الصفحة' : 'Missing H1 Heading tag';
   if (id === 'h1_multiple') return isAr ? 'يوجد أكثر من وسم H1 في الصفحة' : 'Multiple H1 tags detected';
-  if (id === 'canonical_mismatch') return isAr ? 'تعارض الرابط الأساسي Canonical' : 'Canonical URL mismatch';
+  if (id === 'canonical_mismatch') return isAr ? 'تعارض الرابط الأساسي المعياري' : 'Canonical URL mismatch';
   if (id === 'outdated_year') return isAr ? 'سنة قديمة في العنوان أو H1' : 'Outdated year in Title or H1';
   if (id === 'thin_content') return isAr ? 'محتوى نصي ضعيف (< 200 كلمة)' : 'Thin content (< 200 words)';
-  if (id === 'schema_missing') return isAr ? 'غياب البيانات المنظمة (Schema.org)' : 'Missing Structured Data (Schema)';
+  if (id === 'schema_missing') return isAr ? 'غياب البيانات المنظمة' : 'Missing Structured Data (Schema)';
   if (id === 'content_cannibalization') return isAr ? 'تنافس كلمات دلالية وازدواجية محتوى' : 'Keyword Cannibalization conflict';
 
   // Fallback pattern matching
@@ -825,8 +825,8 @@ export function getTechhouseAuditResult(
 
   const cannibalizationClusters: CannibalizationCluster[] = [
     {
-      topic: isAr ? 'أفضل شركة سيو في السعودية vs الرياض' : 'Best SEO Company in Saudi vs Riyadh',
-      topic_ar: 'أفضل شركة سيو في السعودية vs الرياض',
+      topic: isAr ? 'أفضل شركة سيو في السعودية مقابل الرياض' : 'Best SEO Company in Saudi vs Riyadh',
+      topic_ar: 'أفضل شركة سيو في السعودية مقابل الرياض',
       topic_en: 'Best SEO Company in Saudi vs Riyadh',
       similarity: 83,
       similarityScore: '83%',
@@ -847,8 +847,8 @@ export function getTechhouseAuditResult(
       recommendation_en: 'Consolidate or differentiate geo-targeting to eliminate SERP ranking competition.',
     },
     {
-      topic: isAr ? 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية vs طلاب العرب' : 'Social Media Management - Saudi Students vs Arab Students',
-      topic_ar: 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية vs طلاب العرب',
+      topic: isAr ? 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية مقابل طلاب العرب' : 'Social Media Management - Saudi Students vs Arab Students',
+      topic_ar: 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية مقابل طلاب العرب',
       topic_en: 'Social Media Management - Saudi Students vs Arab Students',
       similarity: 71,
       similarityScore: '71%',
@@ -1049,7 +1049,7 @@ export function getTechhouseAuditResult(
     section_action_plans: [
       {
         role: 'technical_seo',
-        title: isAr ? 'خطة عمل التحسين التقني (Technical SEO)' : 'Technical SEO Action Plan',
+        title: isAr ? 'خطة عمل التحسين التقني' : 'Technical SEO Action Plan',
         items: [
           isAr
             ? 'تعديل الرابط الداخلي في صفحة (/من-نحن) للإشارة مباشرة إلى https://techhouseksa.com/اتصل-بنا بدلاً من رابط www'
@@ -1064,7 +1064,7 @@ export function getTechhouseAuditResult(
       },
       {
         role: 'content',
-        title: isAr ? 'خطة عمل إدارة وتطوير المحتوى (Content Strategy)' : 'Content Strategy Action Plan',
+        title: isAr ? 'خطة عمل إدارة وتطوير المحتوى' : 'Content Strategy Action Plan',
         items: [
           isAr
             ? 'إعادة صياغة العناوين الطويلة (>65 حرفاً) في صفحات المشاريع التسعة لضمان ظهورها الجذاب في نتائج البحث'
@@ -1079,7 +1079,7 @@ export function getTechhouseAuditResult(
       },
       {
         role: 'engineering',
-        title: isAr ? 'خطة عمل الدعم الهندسي والبرمجي (Engineering)' : 'Engineering Action Plan',
+        title: isAr ? 'خطة عمل الدعم الهندسي والبرمجي' : 'Engineering Action Plan',
         items: [
           isAr
             ? 'التأكد من التوجيه التلقائي الدائم من www إلى non-www على مستوى إعدادات الخادم Nginx / Cloudflare'

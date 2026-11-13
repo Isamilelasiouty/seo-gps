@@ -158,14 +158,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ runs = [], onOpenRepor
 
             <div className="my-4 space-y-3 flex-1 overflow-y-auto">
               <div className="p-3 bg-surface rounded-lg text-xs space-y-1 font-mono">
-                <div><strong>{isAr ? 'الموضوع:' : 'Subject:'}</strong> {emailPreviewRun.emailSubject || `[SEO GPS] ${emailPreviewRun.scanType === 'baseline' ? 'Baseline Report' : 'Daily Alert'} - Health: ${emailPreviewRun.healthScore}/100`}</div>
+                <div><strong>{isAr ? 'الموضوع:' : 'Subject:'}</strong> {emailPreviewRun.emailSubject || (isAr ? `[SEO GPS] ${emailPreviewRun.scanType === 'baseline' ? 'تقرير الفحص المرجعي الأول' : 'تنبيه الفحص الدوري'} - مؤشر الصحة: ${emailPreviewRun.healthScore}/100` : `[SEO GPS] ${emailPreviewRun.scanType === 'baseline' ? 'Baseline Report' : 'Daily Alert'} - Health: ${emailPreviewRun.healthScore}/100`)}</div>
                 <div><strong>{isAr ? 'تاريخ الإرسال:' : 'Date Sent:'}</strong> {emailPreviewRun.date} {emailPreviewRun.time}</div>
                 <div><strong>{isAr ? 'الحالة:' : 'Status:'}</strong> {isAr ? 'تم الإرسال بنجاح إلى البريد الإلكتروني' : 'Delivered to inbox via Resend'}</div>
               </div>
 
               <div className="p-4 rounded-xl border border-surface-hairline bg-white font-sans text-xs space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b border-surface-hairline">
-                  <span className="font-extrabold text-sm text-ink">SEO GPS by Ismail El Asiouty</span>
+                  <span className="font-extrabold text-sm text-ink">{isAr ? 'SEO GPS • بإشراف إسماعيل الأسيوطي' : 'SEO GPS by Ismail El Asiouty'}</span>
                   <span className="px-2 py-0.5 rounded bg-gold-tint text-gold font-bold">
                     {t('history.health_score')}: {emailPreviewRun.healthScore}/100
                   </span>

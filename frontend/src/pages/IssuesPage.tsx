@@ -105,7 +105,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
     setVerifyingId(issue.id);
     setVerificationFeedback(null);
 
-    const result = await verifyIssueLive(issue.url, issue.checkId);
+    const result = await verifyIssueLive(issue.url, issue.checkId, isAr);
     setVerifyingId(null);
 
     if (result.verified) {
@@ -127,10 +127,20 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
         onRecheckIssue({ ...issue, status: 'resolved' });
       }
     } else {
+      // Strict rejection: issue still broken on website
+      let failureReason = result.reason || '';
+      if (!failureReason) {
+        failureReason = isAr
+          ? 'لم يتم حل المشكلة: ما زالت المشكلة قائمة في الصفحة المستهدفة على الموقع'
+          : 'Issue not resolved: The issue still persists on the target page';
+      } else if (!failureReason.startsWith('لم يتم حل المشكلة') && !failureReason.startsWith('Issue not resolved')) {
+        failureReason = isAr ? `لم يتم حل المشكلة: ${failureReason}` : `Issue not resolved: ${failureReason}`;
+      }
+
       setVerificationFeedback({
         id: issue.id,
         success: false,
-        reason: result.reason || (isAr ? 'تنبيه: المشكلة ما زالت قائمة على الموقع. يرجى التأكد من حفظ التعديلات وإعادة الفحص.' : 'Issue still persists on the target page. Please ensure fixes are saved and retry.'),
+        reason: failureReason,
       });
     }
   };
@@ -162,13 +172,13 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'new':
-        return t('issues.new');
+        return isAr ? 'جديدة' : 'New';
       case 'persisting':
-        return t('issues.persisting');
+        return isAr ? 'مستمرة' : 'Persisting';
       case 'resolved':
-        return t('issues.resolved');
+        return isAr ? 'تم الحل' : 'Resolved';
       case 'ignored':
-        return t('issues.ignored');
+        return isAr ? 'متجاهلة' : 'Ignored';
       default:
         return status;
     }
@@ -201,7 +211,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-title-xl font-extrabold text-ink tracking-tight flex items-center gap-2.5">
-            <span>{isAr ? 'مركز معالجة المشاكل وقائمة المهام (Action To-Do)' : 'Issue Resolution & Action Checklist'}</span>
+            <span>{isAr ? 'مركز معالجة المشاكل وقائمة المهام' : 'Issue Resolution & Action Checklist'}</span>
           </h1>
           <p className="text-body-sm text-ink-muted mt-1">
             {isAr
@@ -222,7 +232,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
               }`}
             >
               <ListTodo className="w-4 h-4" />
-              <span>{isAr ? 'قائمة المهام (To-Do)' : 'To-Do List'}</span>
+              <span>{isAr ? 'قائمة المهام' : 'To-Do List'}</span>
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -242,7 +252,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2 bg-surface hover:bg-surface-tint border border-surface-hairline text-ink font-bold rounded-xl text-xs transition-colors"
           >
             <Download className="w-4 h-4 text-ink-muted" />
-            <span>{isAr ? 'تصدير CSV' : 'Export'}</span>
+            <span>{isAr ? 'تصدير البيانات' : 'Export CSV'}</span>
           </button>
         </div>
       </div>
@@ -378,11 +388,17 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                             : 'bg-blue-100 text-blue-800'
                         }`}
                       >
-                        {isResolved ? (isAr ? 'تم الحل بنجاح' : 'Resolved') : issue.severity}
+                        {isResolved
+                          ? (isAr ? 'تم الحل بنجاح' : 'Resolved')
+                          : issue.severity === 'critical'
+                          ? (isAr ? 'حرجة' : 'Critical')
+                          : issue.severity === 'warning'
+                          ? (isAr ? 'تحذير' : 'Warning')
+                          : (isAr ? 'ملاحظة' : 'Notice')}
                       </span>
 
                       <span className="text-xs font-mono text-ink-muted">
-                        ID: {issue.checkId}
+                        {isAr ? 'المعرف:' : 'Check ID:'} {issue.checkId}
                       </span>
                     </div>
 
@@ -421,7 +437,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                               className="text-gold font-bold hover:underline flex items-center gap-1 text-[11px]"
                             >
                               {copiedKey === `todo-json-${issue.id}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                              <span>{copiedKey === `todo-json-${issue.id}` ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ كود JSON-LD المقترح' : 'Copy Suggested JSON-LD')}</span>
+                              <span>{copiedKey === `todo-json-${issue.id}` ? (isAr ? 'تم النسخ' : 'Copied') : (isAr ? 'نسخ كود البيانات المنظمة' : 'Copy Suggested Schema')}</span>
                             </button>
                           </div>
                         )}
@@ -500,7 +516,11 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                             : 'bg-blue-100 text-blue-800'
                         }`}
                       >
-                        {issue.severity}
+                        {issue.severity === 'critical'
+                          ? (isAr ? 'حرجة' : 'Critical')
+                          : issue.severity === 'warning'
+                          ? (isAr ? 'تحذير' : 'Warning')
+                          : (isAr ? 'ملاحظة' : 'Notice')}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-ink">
@@ -520,7 +540,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                       {isResolved ? (
                         <span className="text-emerald-600 font-bold text-xs flex items-center justify-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>{isAr ? 'محلول' : 'Done'}</span>
+                          <span>{isAr ? 'تم الحل' : 'Resolved'}</span>
                         </span>
                       ) : (
                         <button

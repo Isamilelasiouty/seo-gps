@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-hairline text-body-sm text-ink hover:border-gold-border/60 hover:bg-surface font-semibold transition-all duration-200 active:scale-95"
-          title="Switch Language"
+          title={locale === 'en' ? 'التحويل إلى العربية' : 'Switch to English'}
         >
           <Globe className="w-4 h-4 text-gold" />
           <span>{locale === 'en' ? 'العربية' : 'English'}</span>
@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="flex items-center gap-1.5 hover:text-gold"
                   >
                     <Linkedin className="w-3.5 h-3.5 text-[#0A66C2]" />
-                    <span>إسماعيل الأسيوطي</span>
+                    <span>{locale !== 'en' ? 'إسماعيل الأسيوطي' : 'Ismail El Asiouty'}</span>
                   </a>
                   <a
                     href="mailto:ismailelasiouty3@gmail.com"

@@ -255,7 +255,8 @@ export async function markIssueResolved(
  */
 export async function verifyIssueLive(
   url: string,
-  checkId: string
+  checkId: string,
+  isAr: boolean = true
 ): Promise<{ success: boolean; verified: boolean; status: number; reason: string }> {
   let cleanUrl = (url || '').trim().replace(/^\/+/, '');
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -270,15 +271,26 @@ export async function verifyIssueLive(
           type: 'verify_issue',
           url: cleanUrl,
           checkId: checkId || 'status_check',
+          locale: isAr ? 'ar' : 'en',
         },
       });
 
       if (!error && data && data.success !== undefined) {
+        let reason = data.reason || '';
+        if (!data.verified) {
+          if (!reason) {
+            reason = isAr
+              ? 'لم يتم حل المشكلة: المشكلة ما زالت قائمة على الموقع المستهدف'
+              : 'Issue not resolved: The issue still persists on the target page';
+          } else if (!reason.startsWith('لم يتم حل المشكلة') && !reason.startsWith('Issue not resolved')) {
+            reason = isAr ? `لم يتم حل المشكلة: ${reason}` : `Issue not resolved: ${reason}`;
+          }
+        }
         return {
           success: true,
           verified: Boolean(data.verified),
           status: data.status || 200,
-          reason: data.reason || (data.verified ? 'تم التحقق بنجاح من حل المشكلة' : 'المشكلة ما زالت قائمة'),
+          reason,
         };
       }
     } catch (err) {
@@ -297,21 +309,31 @@ export async function verifyIssueLive(
     const status = res.status;
     const isOk = status >= 200 && status < 400;
 
+    let reason = '';
+    if (isOk) {
+      reason = isAr
+        ? `تم فحص الرابط بنجاح وكود الاستجابة هو ${status} OK`
+        : `Page probed successfully with status ${status} OK`;
+    } else {
+      reason = isAr
+        ? `لم يتم حل المشكلة: الرابط ما زال يُرجع كود استجابة غير سليم (${status})`
+        : `Issue not resolved: Target URL returned an invalid status code (${status})`;
+    }
+
     return {
       success: true,
       verified: isOk,
       status,
-      reason: isOk
-        ? `تم فحص الرابط بنجاح وكود الاستجابة هو ${status} OK`
-        : `الرابط ما زال يُرجع كود استجابة غير سليم (${status})`,
+      reason,
     };
   } catch (err: any) {
-    // If CORS blocked in browser but user marked done, assume connectivity or inform user
     return {
       success: true,
       verified: false,
       status: 0,
-      reason: 'تعذر الاتصال المباشر بالرابط من المتصفح (CORS). يرجى التأكد من استجابة الرابط ونشره على السيرفر.',
+      reason: isAr
+        ? 'لم يتم حل المشكلة: تعذر الاتصال المباشر بالرابط (CORS أو السيرفر غير متصل)'
+        : 'Issue not resolved: Could not reach the target URL directly (CORS or server unreachable)',
     };
   }
 }
