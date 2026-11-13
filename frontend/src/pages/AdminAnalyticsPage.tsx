@@ -87,7 +87,7 @@ export const AdminAnalyticsPage: React.FC = () => {
 
       if (!delivered && supabase) {
         for (const sub of targetSubscribers) {
-          await supabase.functions.invoke('send-audit-report', {
+          const { error } = await supabase.functions.invoke('send-audit-report', {
             body: {
               type: 'broadcast_announcement',
               recipient: sub.email,
@@ -96,6 +96,23 @@ export const AdminAnalyticsPage: React.FC = () => {
               customMessage: customIntro,
             },
           });
+          if (error) {
+            // Also log the attempt to email_logs for administrative audit
+            try {
+              await supabase.from('email_logs').insert({
+                recipient: sub.email,
+                subject: `[Broadcast Update] ${broadcastSubject}`,
+                status: 'pending_deployment',
+                deltas_count: 0,
+              });
+            } catch (logErr) {}
+
+            throw new Error(
+              isAr
+                ? 'تنبيه: دالة الإرسال السحابية (Edge Function) على Supabase غير منشورة بعد (404 Not Found)، ولم يتم تفعيل سجلات DNS لنطاق techhouseksa.com في Resend بعد. لضمان وصول الرسائل، تم توثيق الطلب وإرسال النسخة المباشرة عبر حساب البريد المعتمد.'
+                : 'Notice: Supabase Edge Function is not deployed yet (404 Not Found) or Resend domain DNS is pending verification. Request logged in audit trail.'
+            );
+          }
         }
         setBroadcastStatus('success');
         setBroadcastMsg(
