@@ -41,6 +41,16 @@ interface SiteReportPageProps {
   onNavigateToIssues?: () => void;
 }
 
+const safeDecodeUrl = (raw: string): string => {
+  if (!raw) return '';
+  const cleaned = raw.replace(/^\/+(https?:\/\/)/i, '$1');
+  try {
+    return decodeURI(cleaned);
+  } catch (e) {
+    return cleaned;
+  }
+};
+
 export const SiteReportPage: React.FC<SiteReportPageProps> = ({
   activeProject,
   onNavigateToIssues,
@@ -646,7 +656,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                     </div>
 
                     <div className="text-xs text-ink font-mono bg-white px-2.5 py-1 rounded border border-surface-hairline inline-block truncate max-w-full">
-                      {fixRaw.url}
+                      {safeDecodeUrl(fixRaw.url)}
                     </div>
 
                     <p className="text-body-xs text-ink-muted leading-relaxed">
@@ -738,7 +748,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                   ))}
                   {reportData.section_status?.true_dead_items?.map((item: any, idx: number) => (
                     <tr key={`dead-${idx}`} className="hover:bg-gold-tint/10">
-                      <td className="py-2.5 px-3 text-rose-600 truncate max-w-xs">{item.url}</td>
+                      <td className="py-2.5 px-3 text-rose-600 truncate max-w-xs">{safeDecodeUrl(item.url)}</td>
                       <td className="py-2.5 px-3 font-sans text-rose-700 font-bold">{isAr ? 'صفحة محذوفة نهائياً' : 'True Dead Page'}</td>
                       <td className="py-2.5 px-3 font-sans text-ink">
                         {isAr ? `إضافة تحويل 301 إلى: ${item.dead_match}` : `Configure 301 redirect to: ${item.dead_match}`}
@@ -833,7 +843,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                     <div className="text-rose-600 font-bold">
                       {isAr ? `سنة قديمة ${y.detected_year} -> المقترح: ${y.suggested_text}` : `Detected ${y.detected_year} -> Target: ${y.target_year}`}
                     </div>
-                    <div className="text-ink-muted truncate font-mono mt-0.5">{y.url}</div>
+                    <div className="text-ink-muted truncate font-mono mt-0.5">{safeDecodeUrl(y.url)}</div>
                   </div>
                 ))}
               </div>
@@ -861,7 +871,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                     <div className="font-bold text-ink">
                       {isAr ? `عدد الكلمات: ${tItem.word_count} كلمة (أقل من الحد الموصى به)` : `Word count: ${tItem.word_count} words`}
                     </div>
-                    <div className="text-ink-muted truncate font-mono mt-0.5">{tItem.url}</div>
+                    <div className="text-ink-muted truncate font-mono mt-0.5">{safeDecodeUrl(tItem.url)}</div>
                   </div>
                 ))}
               </div>
@@ -974,7 +984,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                       <div className="text-body-sm font-bold text-ink">
                         {isAr ? `مخطط مفقود: ${gap.missing}` : `Missing: ${gap.missing}`}
                       </div>
-                      <div className="text-xs text-ink-muted font-mono mt-0.5">{gap.url}</div>
+                      <div className="text-xs text-ink-muted font-mono mt-0.5">{safeDecodeUrl(gap.url)}</div>
                     </div>
                     <button
                       onClick={() => copyToClipboard(gap.generated_jsonld, copyKey)}

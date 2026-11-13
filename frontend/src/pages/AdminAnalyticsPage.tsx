@@ -14,6 +14,10 @@ import {
   Mail,
   User,
   ExternalLink,
+  Send,
+  X,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 
 interface AdminStats {
@@ -36,6 +40,75 @@ export const AdminAnalyticsPage: React.FC = () => {
   const [leads, setLeads] = useState<LeadSubscriber[]>(() => getAllLeads());
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Broadcast Announcement State
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [broadcastStatus, setBroadcastStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastSubject, setBroadcastSubject] = useState(
+    isAr ? '[SEO GPS] تحديث جديد في المنصة: واجهة مطورة وتتبع تراجعات فوري لموقعك' : '[SEO GPS] New Platform Update: Redesigned UI & Regression Monitoring'
+  );
+  const [customIntro, setCustomIntro] = useState(
+    isAr ? 'أهلاً بك، تم إضافة تحديث جديد وشامل في SEO GPS يمكنك تجربته الآن' : 'Hello, a major new update is live in SEO GPS. You can try it now!'
+  );
+
+  const handleSendBroadcast = async () => {
+    setBroadcastStatus('sending');
+    setBroadcastMsg('');
+
+    const targetSubscribers = leads.map((l) => ({
+      name: l.name,
+      email: l.email,
+    }));
+
+    try {
+      let delivered = false;
+      try {
+        const res = await fetch('/api/send-broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subscribers: targetSubscribers,
+            subject: broadcastSubject,
+            message: customIntro,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          delivered = true;
+          setBroadcastStatus('success');
+          setBroadcastMsg(
+            isAr
+              ? `تم إرسال الإشعار بنجاح إلى ${data.count || targetSubscribers.length} مشترك مسجل.`
+              : `Update announcement successfully delivered to ${data.count || targetSubscribers.length} subscribers.`
+          );
+        }
+      } catch (e) {}
+
+      if (!delivered && supabase) {
+        for (const sub of targetSubscribers) {
+          await supabase.functions.invoke('send-audit-report', {
+            body: {
+              type: 'broadcast_announcement',
+              recipient: sub.email,
+              userName: sub.name,
+              customSubject: broadcastSubject,
+              customMessage: customIntro,
+            },
+          });
+        }
+        setBroadcastStatus('success');
+        setBroadcastMsg(
+          isAr
+            ? `تم إرسال الإشعار بنجاح إلى ${targetSubscribers.length} مشترك مسجل.`
+            : `Update announcement successfully delivered to ${targetSubscribers.length} subscribers.`
+        );
+      }
+    } catch (err: any) {
+      setBroadcastStatus('error');
+      setBroadcastMsg(err.message || 'Failed to dispatch broadcast');
+    }
+  };
 
   const fetchAdminData = async () => {
     setLoading(true);
@@ -149,6 +222,17 @@ export const AdminAnalyticsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setIsBroadcastOpen(true);
+              setBroadcastStatus('idle');
+              setBroadcastMsg('');
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gold text-white text-body-sm font-bold hover:bg-gold-hover transition-colors shadow-sm"
+          >
+            <Send className="w-4 h-4" />
+            <span>{isAr ? 'إرسال إشعار التحديث للجميع' : 'Broadcast Update Email'}</span>
+          </button>
           <button
             onClick={fetchAdminData}
             disabled={loading}
@@ -351,6 +435,133 @@ export const AdminAnalyticsPage: React.FC = () => {
           </div>
         )}
       </div>
+      {/* Broadcast Announcement Modal */}
+      {isBroadcastOpen && (
+        <div className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-surface-hairline shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-surface-hairline">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-gold-tint flex items-center justify-center text-gold border border-gold-border">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-title-md font-extrabold text-ink">
+                    {isAr ? 'إرسال إشعار التحديث الجديد لكافة المسجلين' : 'Broadcast Update Announcement'}
+                  </h3>
+                  <p className="text-xs text-ink-muted">
+                    {isAr
+                      ? `سيتم إرسال بريد إلكتروني رسمي ومصمم بأعلى احترافية إلى (${leads.length}) مشتركين.`
+                      : `A professional update email will be dispatched to all (${leads.length}) subscribers.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBroadcastOpen(false)}
+                className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-surface transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Email Subject Field */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-ink uppercase tracking-wider">
+                {isAr ? 'عنوان الرسالة (Email Subject)' : 'Email Subject'}
+              </label>
+              <input
+                type="text"
+                value={broadcastSubject}
+                onChange={(e) => setBroadcastSubject(e.target.value)}
+                className="w-full px-3 py-2 bg-surface rounded-xl border border-surface-hairline text-ink text-xs font-semibold focus:outline-none focus:border-gold-border"
+              />
+            </div>
+
+            {/* Email Preview Card */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-ink uppercase tracking-wider">
+                {isAr ? 'معاينة محتوى البريد الإلكتروني الرسمي' : 'Email Content Preview'}
+              </label>
+              <div className="p-4 bg-surface rounded-xl border border-surface-hairline text-xs space-y-3 font-sans" dir="rtl">
+                <div className="text-center pb-2 border-b border-surface-hairline">
+                  <span className="font-extrabold text-gold text-sm">SEO GPS</span>
+                  <span className="text-[11px] text-ink-muted block">بإشراف إسماعيل الأسيوطي</span>
+                </div>
+                <div className="font-bold text-ink text-sm">
+                  أهلاً بك، تم إطلاق تحديث جديد وشامل في منصة SEO GPS
+                </div>
+                <p className="text-ink-light leading-relaxed">
+                  نعمل باستمرار على تطوير المنصة لتقديم أدق تحليل استباقي ومراقبة لحظية لحماية ترتيب موقعك في نتائج البحث (Google). يسعدنا مشاركتك أبرز ميزات التحديث الجديد المتاح الآن:
+                </p>
+                <div className="bg-white p-3 rounded-lg border border-surface-hairline space-y-1.5 text-[11px] text-ink-light">
+                  <div><strong>واجهة مستخدم مطورة ومريحة للعين:</strong> تصميم عصري وسريع الاستجابة يتيح لك فحص وتحليل كافة مؤشرات الموقع بسلاسة تامة.</div>
+                  <div><strong>فحص فوري شامل للروابط والمحتوى:</strong> استخراج كافة روابط خريطة الموقع، كشف الروابط المعطلة (404)، وتحويلات (301) داخل نصوص المقالات.</div>
+                  <div><strong>فاحص البيانات المنظمة (Schema Markup):</strong> تحليل نوعي لكل Schema مع عرض الكود البرمجي المكتشف (JSON-LD) وحلول معالجة الأخطاء.</div>
+                  <div><strong>كشف تنافس الكلمات (Cannibalization):</strong> تحديد المقالات التي تتنافس على نفس الكلمة المفتاحية وتقديم خطة عملية لتصدير المقال الأقوى.</div>
+                  <div><strong>تصدير فوري للتقارير:</strong> إمكانية تحميل التقرير الكامل بصيغتي PDF للطباعة أو ملف HTML مستقل يعمل بدون إنترنت.</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recipient Count & Warning */}
+            <div className="flex items-center justify-between text-xs text-ink-muted p-3 bg-gold-tint/40 rounded-xl border border-gold-border/40">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-gold shrink-0" />
+                <span>
+                  {isAr
+                    ? `المستلمون: ${leads.length} حسابات بريدية مسجلة`
+                    : `Recipients: ${leads.length} registered email accounts`}
+                </span>
+              </div>
+              <span className="text-[11px] text-gold font-bold">
+                {isAr ? 'عبر مزود Resend المعتمد' : 'Via Resend API'}
+              </span>
+            </div>
+
+            {/* Status Message */}
+            {broadcastStatus === 'success' && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{broadcastMsg}</span>
+              </div>
+            )}
+            {broadcastStatus === 'error' && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{broadcastMsg}</span>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-hairline">
+              <button
+                type="button"
+                onClick={() => setIsBroadcastOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-ink-muted hover:text-ink hover:bg-surface transition-colors"
+              >
+                {isAr ? 'إغلاق' : 'Close'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendBroadcast}
+                disabled={broadcastStatus === 'sending'}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gold text-white text-xs font-bold hover:bg-gold-hover transition-colors shadow-sm disabled:opacity-50"
+              >
+                <Send className={`w-3.5 h-3.5 ${broadcastStatus === 'sending' ? 'animate-spin' : ''}`} />
+                <span>
+                  {broadcastStatus === 'sending'
+                    ? isAr
+                      ? 'جاري الإرسال...'
+                      : 'Sending...'
+                    : isAr
+                    ? 'تأكيد وإرسال الإشعار للجميع الآن'
+                    : 'Confirm & Send Broadcast Now'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

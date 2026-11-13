@@ -50,6 +50,16 @@ interface PagesExplorerPageProps {
   pages?: PageRecord[];
 }
 
+const safeDecodeUrl = (raw: string): string => {
+  if (!raw) return '';
+  const cleaned = raw.replace(/^\/+(https?:\/\/)/i, '$1');
+  try {
+    return decodeURI(cleaned);
+  } catch (e) {
+    return cleaned;
+  }
+};
+
 export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = [] }) => {
   const { t, locale, dir } = useI18n();
   const isAr = locale !== 'en';
@@ -240,7 +250,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                       </td>
                       <td className="py-3 px-4 font-mono text-ink max-w-xs truncate">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate">{p.url}</span>
+                          <span className="truncate" title={safeDecodeUrl(p.url)}>{safeDecodeUrl(p.url)}</span>
                           <a
                             href={p.url}
                             target="_blank"
@@ -344,7 +354,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                   rel="noreferrer"
                   className="text-xs text-gold hover:underline font-mono flex items-center gap-1"
                 >
-                  <span className="truncate">{selectedPage.url}</span>
+                  <span className="truncate" title={safeDecodeUrl(selectedPage.url)}>{safeDecodeUrl(selectedPage.url)}</span>
                   <ExternalLink className="w-3 h-3 shrink-0" />
                 </a>
               </div>
@@ -488,7 +498,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                                   rel="noreferrer"
                                   className="hover:text-gold flex items-center gap-1 truncate"
                                 >
-                                  <span className="truncate">{l.url}</span>
+                                  <span className="truncate" title={safeDecodeUrl(l.url)}>{safeDecodeUrl(l.url)}</span>
                                   <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                                 </a>
                               </td>

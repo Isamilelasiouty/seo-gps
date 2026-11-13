@@ -238,7 +238,7 @@ export function sanitizeInputUrl(input: string): { cleanRoot: string; domain: st
 
 export function normalizeUrl(u: string): string {
   if (!u) return '';
-  let cleaned = u.trim().replace(/^[/\s"']+/, '');
+  let cleaned = u.trim().replace(/^[\s"']+/, '').replace(/^\/+(https?:\/\/)/i, '$1').replace(/^[/\s"']+/, '');
   if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
     cleaned = 'https://' + cleaned;
   }
@@ -2483,23 +2483,7 @@ export async function executeSiteCrawl(options: {
           }
         } catch (fetchErr: any) {
           statusCode = 0;
-          title = 'Connection Timeout / Failed';
-          pageIssues.push({
-            id: `iss-timeout-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            fingerprint: `fp-timeout-${url}`,
-            url: (url || '').replace(/^\/+(https?:\/\/)/i, '$1'),
-            checkId: 'connection_timeout',
-            title: isAr ? 'فشل الاتصال بالصفحة أو انتهاء مهلة الاستجابة' : 'Connection Timeout / Network Unreachable',
-            title_ar: 'فشل الاتصال بالصفحة أو انتهاء مهلة الاستجابة',
-            title_en: 'Connection Timeout / Network Unreachable',
-            severity: 'critical',
-            confidence: 'high',
-            firstSeen: new Date().toISOString(),
-            lastSeen: new Date().toISOString(),
-            daysOpen: 0,
-            isBaseline: true,
-            status: 'persisting',
-          });
+          title = 'Network Response / Unreachable';
         }
 
         const pageType = classifyPageType(url, title);

@@ -63,13 +63,26 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
   const [isValidating, setIsValidating] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  const cleanIssues = (issues || [])
+    .filter((i) => i && i.checkId !== 'connection_timeout' && !i.url?.startsWith('/http'))
+    .map((i) => {
+      let rawUrl = (i.url || '').replace(/^\/+(https?:\/\/)/i, '$1');
+      try {
+        rawUrl = decodeURI(rawUrl);
+      } catch (e) {}
+      return {
+        ...i,
+        url: rawUrl,
+      };
+    });
+
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const filteredIssues = issues.filter((iss) => {
+  const filteredIssues = cleanIssues.filter((iss) => {
     // 1. Tab filter
     if (activeTab === 'new' && iss.status !== 'new') return false;
     if (activeTab === 'persisting' && iss.status !== 'persisting' && iss.status !== 'reappeared') return false;
@@ -125,10 +138,10 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
   };
 
   // Counts for tabs
-  const countNew = issues.filter((i) => i.status === 'new').length;
-  const countPersisting = issues.filter((i) => i.status === 'persisting' || i.status === 'reappeared').length;
-  const countResolved = issues.filter((i) => i.status === 'resolved').length;
-  const countIgnored = issues.filter((i) => i.status === 'ignored').length;
+  const countNew = cleanIssues.filter((i) => i.status === 'new').length;
+  const countPersisting = cleanIssues.filter((i) => i.status === 'persisting' || i.status === 'reappeared').length;
+  const countResolved = cleanIssues.filter((i) => i.status === 'resolved').length;
+  const countIgnored = cleanIssues.filter((i) => i.status === 'ignored').length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -179,7 +192,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
               : 'bg-surface text-ink-muted hover:text-ink border border-surface-hairline'
           }`}
         >
-          {t('issues.all_issues')} ({issues.length})
+          {t('issues.all_issues')} ({cleanIssues.length})
         </button>
         <button
           onClick={() => setActiveTab('new')}
@@ -227,7 +240,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
         </button>
       </div>
 
-      {issues.length === 0 ? (
+      {cleanIssues.length === 0 ? (
         <div className="editorial-card p-12 text-center flex flex-col items-center justify-center">
           <div className="w-16 h-16 rounded-2xl bg-severity-healthy-bg border border-severity-healthy-border flex items-center justify-center text-severity-healthy mb-4">
             <CheckCircle2 className="w-8 h-8" />
