@@ -6,6 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function renderLayout(title: string, bodyHtml: string) {
+  return `
+    <div style="font-family: Arial, -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 12px; overflow: hidden;">
+      <div style="background: #FFFFFF; padding: 22px; text-align: center; border-bottom: 2px solid #E9D9A8;">
+        <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 38px; width: auto; display: block; margin: 0 auto;" />
+      </div>
+      <div style="padding: 28px; direction: rtl; text-align: right; color: #16140F; background: #FFFFFF;">
+        <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: bold; color: #16140F;">${title}</h2>
+        ${bodyHtml}
+      </div>
+      <div style="background: #F9F8F5; padding: 18px 24px; text-align: center; border-top: 1px solid #ECE8DC; font-size: 12px; color: #7A7462;">
+        <p style="margin: 0 0 4px; font-weight: bold;">SEO GPS - منصة التحليل والمراقبة الذكية</p>
+        <p style="margin: 0;">بإشراف إسماعيل الأسيوطي | <a href="https://isamilelasiouty.github.io/seo-gps" style="color: #B8892B; text-decoration: none;">زيارة المنصة</a></p>
+      </div>
+    </div>
+  `;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -16,263 +34,139 @@ serve(async (req) => {
     const {
       type = "audit_report",
       recipient,
-      userName,
-      userEmail,
-      domain,
-      rootUrl,
+      userName = "",
+      userEmail = "",
+      domain = "",
+      rootUrl = "",
       healthScore = 100,
       pagesCount = 0,
       criticalCount = 0,
       warningCount = 0,
       noticeCount = 0,
       cannibalizationCount = 0,
-      issuesSummary = [],
     } = body;
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "RESEND_API_KEY is not configured on server" }),
+        JSON.stringify({ success: false, error: "RESEND_API_KEY is not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const emailFrom = Deno.env.get("EMAIL_FROM") || "SEO GPS <onboarding@resend.dev>";
     const ownerEmail = "ismailelasiouty3@gmail.com";
-    let targetRecipient = recipient;
+    let targetRecipient = recipient || userEmail || ownerEmail;
     let subject = "";
-    let emailHtml = "";
+    let contentHtml = "";
 
-    // -------------------------------------------------------------------------
-    // Mode A: Signup Notification to Ismail El Asiouty
-    // -------------------------------------------------------------------------
     if (type === "signup_notification") {
       targetRecipient = ownerEmail;
       subject = `[SEO GPS] مستخدم جديد سجل في المنصة: ${userName || userEmail}`;
-      const timestamp = new Date().toLocaleString();
-      emailHtml = `
-        <div style="font-family: Arial, sans-serif; padding: 24px; color: #16140F; background: #FAFAF7;">
-          <h2 style="color: #B8892B; margin-bottom: 12px;">مستخدم جديد سجل في SEO GPS</h2>
-          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 8px;">
-            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">اسم المستخدم:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userName || "غير محدد"}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">البريد الإلكتروني:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userEmail}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">وقت التسجيل:</td><td style="padding: 10px;">${timestamp}</td></tr>
-          </table>
-          <p style="margin-top: 20px; font-size: 13px; color: #6B665A;">SEO GPS by Ismail El Asiouty</p>
-        </div>
-      `;
-    }
-    // -------------------------------------------------------------------------
-    // Mode B: Lead / Subscriber Registration Notification
-    // -------------------------------------------------------------------------
-    else if (type === "lead_registration") {
+      contentHtml = renderLayout(
+        "مستخدم جديد انضم للمنصة",
+        `<table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px;">
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ECE8DC;">الاسم:</td><td style="padding: 10px; border-bottom: 1px solid #ECE8DC;">${userName || "غير محدد"}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ECE8DC;">البريد:</td><td style="padding: 10px; border-bottom: 1px solid #ECE8DC;">${userEmail}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold;">التاريخ:</td><td style="padding: 10px;">${new Date().toLocaleString()}</td></tr>
+        </table>`
+      );
+    } else if (type === "lead_registration") {
       targetRecipient = ownerEmail;
-      subject = `[SEO GPS] مشترك جديد طلب استلام تقارير الموقع: ${userName || userEmail}`;
-      const timestamp = new Date().toLocaleString();
-      emailHtml = `
-        <div style="font-family: Arial, sans-serif; padding: 24px; color: #16140F; background: #FAFAF7;">
-          <h2 style="color: #B8892B; margin-bottom: 12px;">مشترك / عميل محتمل جديد في SEO GPS</h2>
-          <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 8px;">
-            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">الاسم:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userName || "غير محدد"}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">البريد الإلكتروني:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userEmail}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">الموقع المراد مراقبته:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${domain || "غير محدد"}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">تاريخ الطلب:</td><td style="padding: 10px;">${timestamp}</td></tr>
-          </table>
-          <p style="margin-top: 20px; font-size: 13px; color: #6B665A;">SEO GPS by Ismail El Asiouty</p>
-        </div>
-      `;
-    }
-    // -------------------------------------------------------------------------
-    // Mode C: Broadcast Announcement to Subscribers
-    // -------------------------------------------------------------------------
-    else if (type === "broadcast_announcement") {
+      subject = `[SEO GPS] مشترك جديد طلب تقرير الموقع: ${userName || userEmail}`;
+      contentHtml = renderLayout(
+        "مشترك جديد يطلب متابعة موقعه",
+        `<table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px;">
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ECE8DC;">الاسم:</td><td style="padding: 10px; border-bottom: 1px solid #ECE8DC;">${userName || "غير محدد"}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ECE8DC;">البريد:</td><td style="padding: 10px; border-bottom: 1px solid #ECE8DC;">${userEmail}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ECE8DC;">الموقع:</td><td style="padding: 10px; border-bottom: 1px solid #ECE8DC;">${domain}</td></tr>
+          <tr><td style="padding: 10px; font-weight: bold;">التاريخ:</td><td style="padding: 10px;">${new Date().toLocaleString()}</td></tr>
+        </table>`
+      );
+    } else if (type === "broadcast_announcement") {
       const greeting = userName ? `أهلاً بك أستاذ ${userName}،` : "أهلاً بك،";
-      subject = body.customSubject || "[SEO GPS] تحديث جديد في المنصة: واجهة مطورة وتتبع تراجعات فوري لموقعك";
-      targetRecipient = recipient;
-      emailHtml = `
-        <div style="font-family: Arial, -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border: 1px solid #ECE8DC; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(22,20,15,0.04);">
-          <div style="background: #FFFFFF; padding: 26px 24px; text-align: center; border-bottom: 2px solid #E9D9A8;">
-            <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 42px; width: auto; display: block; margin: 0 auto;" />
-          </div>
-          <div style="padding: 32px 28px; direction: rtl; text-align: right; color: #16140F; background: #FFFFFF;">
-            <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 800; color: #16140F; line-height: 1.4;">
-              ${greeting} تم إطلاق تحديث جديد وشامل في منصة SEO GPS
-            </h2>
-            <p style="font-size: 14px; line-height: 1.8; color: #413E35; margin: 0 0 20px;">
-              ${body.customMessage || "يسعدنا إعلامك بأنه تم إطلاق تحديث جديد وشامل لمنصة SEO GPS يتضمن واجهة مطورة ومريحة للعين وفحصاً أكثر دقة للمواقع."}
-            </p>
-            <div style="background: #FAFAF7; border: 1px solid #ECE8DC; border-radius: 10px; padding: 20px; margin-bottom: 24px;">
-              <ul style="margin: 0; padding-right: 20px; font-size: 13.5px; line-height: 1.9; color: #413E35;">
-                <li style="margin-bottom: 8px;"><strong>واجهة مستخدم مطورة ومريحة للعين:</strong> تصميم عصري وسريع الاستجابة يتيح لك فحص وتحليل كافة مؤشرات الموقع بسلاسة تامة.</li>
-                <li style="margin-bottom: 8px;"><strong>فحص فوري شامل للروابط والمحتوى:</strong> استخراج كافة روابط خريطة الموقع، كشف الروابط المعطلة (404)، وتحويلات (301) داخل نصوص المقالات.</li>
-                <li style="margin-bottom: 8px;"><strong>فاحص البيانات المنظمة (Schema Markup):</strong> تحليل نوعي لكل Schema مع عرض الكود البرمجي المكتشف (JSON-LD) وحلول معالجة الأخطاء.</li>
-                <li style="margin-bottom: 8px;"><strong>كشف تنافس الكلمات (Cannibalization):</strong> تحديد المقالات التي تتنافس على نفس الكلمة المفتاحية وتقديم خطة عملية لتصدير المقال الأقوى.</li>
-                <li><strong>تصدير فوري للتقارير:</strong> إمكانية تحميل التقرير الكامل بصيغتي PDF للطباعة أو ملف HTML مستقل يعمل بدون إنترنت.</li>
-              </ul>
-            </div>
-            <div style="text-align: center; margin: 28px 0 16px;">
-              <a href="https://isamilelasiouty.github.io/seo-gps/#/" style="display: inline-block; background-color: #B8892B; color: #FFFFFF; padding: 13px 34px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 14px;">
-                دخول المنصة وتجربة التحديث الجديد &larr;
-              </a>
-            </div>
-          </div>
-          <div style="background: #FAFAF7; border-top: 1px solid #ECE8DC; padding: 18px 24px; text-align: center; font-size: 12px; color: #6B665A; direction: rtl;">
-            <p style="margin: 0;">منصة SEO GPS &bull; بإشراف إسماعيل الأسيوطي</p>
-            <p style="margin: 4px 0 0;"><a href="https://isamilelasiouty.github.io/seo-gps/#/" style="color: #B8892B; text-decoration: none;">زيارة الموقع الرسمي</a></p>
-          </div>
+      subject = body.customSubject || "[SEO GPS] تحديث جديد في المنصة: واجهة مطورة وتتبع تراجعات فوري";
+      contentHtml = renderLayout(
+        `${greeting} تم إطلاق تحديث جديد في منصة SEO GPS`,
+        `<p style="font-size: 14px; line-height: 1.7; color: #3A352A; margin: 0 0 16px;">
+          نعمل باستمرار على تطوير المنصة لتقديم أدق تحليل استباقي ومراقبة لحظية لحماية ترتيب موقعك في نتائج البحث. يسعدنا مشاركتك أبرز ميزات التحديث الجديد المتاح الآن:
+        </p>
+        <div style="background: #FAF8F5; border: 1px solid #EBE4D5; border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 13px; line-height: 1.8;">
+          <p style="margin: 0 0 8px;"><b>واجهة مستخدم مطورة ومريحة للعين:</b> تصميم عصري وسريع الاستجابة يتيح لك فحص وتحليل كافة مؤشرات الموقع بسلاسة تامة.</p>
+          <p style="margin: 0 0 8px;"><b>فحص فوري شامل للروابط والمحتوى:</b> استخراج كافة روابط خريطة الموقع، كشف الروابط المعطلة (404)، وتحويلات (301) داخل نصوص المقالات.</p>
+          <p style="margin: 0 0 8px;"><b>فاحص البيانات المنظمة (Schema Markup):</b> تحليل نوعي لكل Schema مع عرض الكود البرمجي المكتشف (JSON-LD) وحلول معالجة الأخطاء.</p>
+          <p style="margin: 0 0 8px;"><b>كشف تنافس الكلمات (Cannibalization):</b> تحديد المقالات التي تتنافس على نفس الكلمة المفتاحية وتقديم خطة عملية لتصدير المقال الأقوى.</p>
+          <p style="margin: 0;"><b>تصدير فوري للتقارير:</b> إمكانية تحميل التقرير الكامل بصيغتي PDF للطباعة أو ملف HTML مستقل يعمل بدون إنترنت.</p>
         </div>
-      `;
-    }
-    // -------------------------------------------------------------------------
-    // Mode C: Full Technical Audit Report
-    // -------------------------------------------------------------------------
-    else {
-      if (!recipient) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Recipient email is required" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      subject = `[SEO GPS] تقرير الفحص التقني الشامل: ${domain} (درجة الصحة: ${healthScore}/100)`;
-      const issuesHtml = (issuesSummary || [])
-        .map(
-          (iss: any) => `
-          <tr style="border-bottom: 1px solid #E5E5DE;">
-            <td style="padding: 10px; font-weight: bold; color: ${
-              iss.severity === "critical" ? "#D92D20" : iss.severity === "warning" ? "#DC6803" : "#475467"
-            };">${(iss.severity || "INFO").toUpperCase()}</td>
-            <td style="padding: 10px; color: #16140F;">${iss.title}</td>
-            <td style="padding: 10px; font-family: monospace; font-size: 12px; color: #667085;">${iss.url || ""}</td>
-          </tr>`
-        )
-        .join("");
-
-      emailHtml = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 12px; overflow: hidden;">
-          <div style="background: #FFFFFF; padding: 24px; text-align: center; border-bottom: 2px solid #E9D9A8;">
-            <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 44px; width: auto; display: block; margin: 0 auto;" />
-          </div>
-
-          <div style="padding: 24px;">
-            <div style="margin-bottom: 20px;">
-              <h2 style="font-size: 18px; color: #16140F; margin: 0 0 4px;">نتائج فحص الموقع: <span style="color: #B8892B;">${domain}</span></h2>
-              <p style="color: #667085; font-size: 13px; margin: 0;">الرابط المفحوص: <a href="${rootUrl}" style="color: #B8892B;">${rootUrl}</a></p>
-              ${userName ? `<p style="color: #667085; font-size: 12px; margin: 4px 0 0;">المستلم / صاحب الطلب: <strong>${userName}</strong> (${recipient})</p>` : ""}
-            </div>
-
-            <div style="display: flex; gap: 12px; margin-bottom: 24px; background: #FAFAF7; padding: 16px; border-radius: 8px; border: 1px solid #E5E5DE;">
-              <div style="text-align: center; flex: 1;">
-                <div style="font-size: 26px; font-weight: 900; color: #B8892B;">${healthScore}/100</div>
-                <div style="font-size: 11px; font-weight: bold; color: #667085; text-transform: uppercase;">درجة الصحة</div>
-              </div>
-              <div style="text-align: center; flex: 1;">
-                <div style="font-size: 26px; font-weight: 900; color: #16140F;">${pagesCount}</div>
-                <div style="font-size: 11px; font-weight: bold; color: #667085; text-transform: uppercase;">الصفحات</div>
-              </div>
-              <div style="text-align: center; flex: 1;">
-                <div style="font-size: 26px; font-weight: 900; color: #D92D20;">${criticalCount}</div>
-                <div style="font-size: 11px; font-weight: bold; color: #667085; text-transform: uppercase;">أخطاء حرجة</div>
-              </div>
-              <div style="text-align: center; flex: 1;">
-                <div style="font-size: 26px; font-weight: 900; color: #DC6803;">${cannibalizationCount}</div>
-                <div style="font-size: 11px; font-weight: bold; color: #667085; text-transform: uppercase;">تكرار محتوى</div>
-              </div>
-            </div>
-
-            ${
-              issuesSummary.length > 0
-                ? `
-              <h3 style="font-size: 14px; font-weight: bold; color: #16140F; margin: 0 0 10px;">أبرز الملاحظات المرصودة:</h3>
-              <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
-                <thead>
-                  <tr style="background: #FAFAF7; text-align: right; border-bottom: 2px solid #E5E5DE; color: #475467;">
-                    <th style="padding: 8px 10px;">المستوى</th>
-                    <th style="padding: 8px 10px;">المشكلة</th>
-                    <th style="padding: 8px 10px;">الرابط</th>
-                  </tr>
-                </thead>
-                <tbody>${issuesHtml}</tbody>
-              </table>
-            `
-                : `<p style="color: #067647; font-weight: bold;">تهانينا! موقعك بحالة ممتازة ولم يتم رصد أي مشاكل تقنية حرجة.</p>`
-            }
-
-            <div style="text-align: center; margin: 24px 0 16px;">
-              <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 13px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">عرض التقرير التفاعلي الكامل في المنصة &rarr;</a>
-            </div>
-
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E5E5DE; text-align: center; font-size: 12px; color: #98A2B3;">
-              <p style="margin: 0;">تم إنشاء التقرير آلياً بواسطة منصة <strong>SEO GPS</strong> &bull; بإشراف إسماعيل الأسيوطي</p>
-              <p style="margin: 4px 0 0;"><a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="color: #B8892B; text-decoration: none;">الدخول إلى لوحة التحكم SEO GPS</a></p>
-            </div>
-          </div>
+        <div style="text-align: center; margin: 24px 0 12px;">
+          <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px;">
+            تجربة المنصة الآن
+          </a>
+        </div>`
+      );
+    } else {
+      subject = `[SEO GPS] تقرير فحص الموقع الشامل: ${domain || rootUrl}`;
+      const reportUrl = `https://isamilelasiouty.github.io/seo-gps/#/site-report?domain=${encodeURIComponent(domain)}`;
+      contentHtml = renderLayout(
+        `تقرير الفحص الفني الشامل لموقع: ${domain}`,
+        `<div style="background: #FAF8F5; border: 1px solid #EBE4D5; border-radius: 8px; padding: 18px; margin: 16px 0; text-align: center;">
+          <div style="font-size: 13px; color: #7A7462; margin-bottom: 4px;">معدل الصحة العامة (Health Score)</div>
+          <div style="font-size: 38px; font-weight: 800; color: #15803D;">${healthScore}<span style="font-size: 16px; color: #7A7462;">/100</span></div>
         </div>
-      `;
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #ECE8DC;">الصفحات المفحوصة:</td><td style="padding: 8px; border-bottom: 1px solid #ECE8DC; font-weight: bold;">${pagesCount}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #ECE8DC;">مشاكل حرجة (Critical):</td><td style="padding: 8px; border-bottom: 1px solid #ECE8DC; font-weight: bold; color: #DC2626;">${criticalCount}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #ECE8DC;">تحذيرات (Warnings):</td><td style="padding: 8px; border-bottom: 1px solid #ECE8DC; font-weight: bold; color: #D97706;">${warningCount}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #ECE8DC;">ملاحظات (Notices):</td><td style="padding: 8px; border-bottom: 1px solid #ECE8DC; font-weight: bold; color: #2563EB;">${noticeCount}</td></tr>
+          <tr><td style="padding: 8px;">تنافس الكلمات (Cannibalization):</td><td style="padding: 8px; font-weight: bold; color: #7C3AED;">${cannibalizationCount}</td></tr>
+        </table>
+        <div style="text-align: center; margin: 24px 0 12px;">
+          <a href="${reportUrl}" style="display: inline-block; background: #B8892B; color: #FFFFFF; font-weight: bold; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px;">
+            عرض التقرير التفاعلي بالكامل
+          </a>
+        </div>`
+      );
     }
 
-    // 1. Attempt sending to targetRecipient via Resend
-    let resendRes = await fetch("https://api.resend.com/emails", {
+    const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${resendApiKey}`,
+        "Authorization": `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         from: emailFrom,
         to: [targetRecipient],
         subject,
-        html: emailHtml,
+        html: contentHtml,
       }),
     });
 
-    let resendData = await resendRes.json();
-    let isSandboxRestriction =
-      !resendRes.ok &&
-      (resendRes.status === 403 ||
-        (typeof resendData?.message === "string" && resendData.message.includes("resend.com/domains")));
+    const resendData = await resendRes.json();
+    let isSandboxRestriction = false;
 
-    // 2. If sandbox restricted and target is not owner, dispatch copy to owner immediately
-    if (isSandboxRestriction && targetRecipient.toLowerCase() !== ownerEmail.toLowerCase()) {
-      console.log(`[Resend Sandbox] Forwarding client report to owner (${ownerEmail}) for: ${targetRecipient}`);
-      const ownerAlertHtml = `
-        <div style="background: #FFFBEB; border: 1px solid #FDE68A; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-family: Arial, sans-serif;">
-          <p style="margin: 0; color: #B45309; font-weight: bold; font-size: 14px;">
-            طلب تقرير عميل جديد في SEO GPS:
-          </p>
-          <p style="margin: 6px 0 0; color: #92400E; font-size: 13px;">
-            طلب العميل <strong>${userName || "غير محدد"}</strong> (${targetRecipient}) فحص الموقع <strong>${domain}</strong>.
-            <br>
-            <span style="font-size: 12px; color: #B45309;">(نظراً لأن الدومين في Resend ما زال تجريبياً onboarding@resend.dev، تم إرسال هذه النسخة إلى بريدك مباشرة لضمان عدم ضياع أي عميل).</span>
-          </p>
-        </div>
-        ${emailHtml}
-      `;
-
-      try {
-        const ownerRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: emailFrom,
-            to: [ownerEmail],
-            subject: `[SEO GPS - طلب تقرير عميل] ${userName || targetRecipient} - موقع: ${domain}`,
-            html: ownerAlertHtml,
-          }),
-        });
-        if (ownerRes.ok) {
-          const ownerData = await ownerRes.json();
-          resendData = { id: ownerData.id, forwardedToOwner: true };
+    if (!resendRes.ok) {
+      const errMsg = resendData?.message || JSON.stringify(resendData);
+      if (resendRes.status === 403 || errMsg.includes("resend.com/domains") || errMsg.includes("testing emails")) {
+        isSandboxRestriction = true;
+        if (targetRecipient.toLowerCase() !== ownerEmail.toLowerCase()) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: emailFrom,
+              to: [ownerEmail],
+              subject: `[نسخة إسماعيل - طلب عميل] ${userName || targetRecipient} - ${subject}`,
+              html: contentHtml,
+            }),
+          });
         }
-      } catch (forwardErr) {
-        console.warn("Could not forward to owner:", forwardErr);
       }
     }
 
-    // 3. Log lead to Supabase email_logs
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -280,31 +174,25 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseKey);
         await supabase.from("email_logs").insert({
           recipient: targetRecipient,
-          subject: `[Lead: ${userName || targetRecipient}] ${subject}`,
-          status: "sent",
+          subject,
+          status: resendRes.ok || isSandboxRestriction ? "sent" : "failed",
           deltas_count: criticalCount + warningCount,
         });
       }
-    } catch (e) {
-      console.warn("Could not insert email_log:", e);
-    }
+    } catch (_) {}
 
-    // 4. Return clean, friendly response (never crash or return raw 403 to frontend)
     return new Response(
       JSON.stringify({
-        success: true,
+        success: resendRes.ok || isSandboxRestriction,
         isSandboxRestriction,
         recipient: targetRecipient,
-        id: resendData?.id || `req-${Date.now()}`,
-        message: isSandboxRestriction
-          ? "Client lead captured and notified to owner. Domain verification recommended on resend.com/domains."
-          : "Email delivered successfully.",
+        id: resendData?.id,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ success: false, error: err.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: err.message || "Internal error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
