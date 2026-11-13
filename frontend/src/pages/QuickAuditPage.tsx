@@ -428,9 +428,9 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
         </div>
       )}
 
-      {/* Email feedback alert */}
-      {emailStatus && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-body-sm text-emerald-800 flex items-center gap-2 font-bold animate-in fade-in">
+      {/* Email feedback alert ONLY when auditResult is not yet loaded */}
+      {emailStatus && !auditResult && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-body-sm text-emerald-800 flex items-center gap-2 font-bold animate-in fade-in shadow-sm">
           <CheckCircle className="w-5 h-5 shrink-0 text-emerald-600" />
           <span>{emailStatus}</span>
         </div>
@@ -440,26 +440,32 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
       {auditResult && pages.length > 0 && (
         <div className="space-y-6 animate-in fade-in">
           {/* Post-Audit Success & Download Banner */}
-          <div className="editorial-card p-6 bg-gradient-to-r from-gold-tint/50 via-white to-gold-tint/30 border border-gold-border space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gold text-white flex items-center justify-center shrink-0">
-                <CheckCircle className="w-6 h-6" />
+          <div className="editorial-card p-6 bg-gradient-to-br from-gold-tint/40 via-white to-gold-tint/20 border border-gold-border/80 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-sm">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
               <div className="flex-1">
-                <h3 className="text-title-md font-extrabold text-ink">
+                <h3 className="text-title-md font-extrabold text-ink tracking-tight">
                   {t('quick_audit.post_audit_success_title')}
                 </h3>
                 <p className="text-body-sm text-ink-muted mt-1 leading-relaxed">
                   {t('quick_audit.post_audit_success_desc').replace('{email}', recipientEmail || auditResult.domain)}
                 </p>
+                {emailStatus && (
+                  <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-xs text-ink-muted leading-relaxed">
+                    <Info className="w-3.5 h-3.5 text-gold shrink-0" />
+                    <span>{emailStatus}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Direct Download Actions */}
-            <div className="pt-2 flex items-center gap-3 flex-wrap border-t border-gold-border/40">
+            <div className="pt-3 flex items-center gap-3 flex-wrap border-t border-gold-border/40">
               <button
                 onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gold-tint/50 text-ink rounded-xl border border-surface-hairline hover:border-gold-border text-body-sm font-bold shadow-sm transition-all duration-200 active:scale-95"
               >
                 <Printer className="w-4 h-4 text-gold" />
                 <span>{t('quick_audit.download_pdf_btn')}</span>
@@ -467,7 +473,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
               <button
                 onClick={() => exportStandaloneHTMLReport(auditResult.siteReport, auditResult.domain, isAr)}
-                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gold-tint/50 text-ink rounded-xl border border-surface-hairline hover:border-gold-border text-body-sm font-bold shadow-sm transition-all duration-200 active:scale-95"
               >
                 <Globe className="w-4 h-4 text-gold" />
                 <span>{t('quick_audit.download_html_btn')}</span>
@@ -475,7 +481,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
               <button
                 onClick={() => exportReportCSV(auditResult.siteReport, auditResult.domain, 'latest')}
-                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gold-tint text-ink rounded-lg border border-surface-hairline text-body-sm font-bold shadow-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gold-tint/50 text-ink rounded-xl border border-surface-hairline hover:border-gold-border text-body-sm font-bold shadow-sm transition-all duration-200 active:scale-95"
               >
                 <Download className="w-4 h-4 text-gold" />
                 <span>{t('quick_audit.export_csv_btn')}</span>
@@ -484,38 +490,40 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
           </div>
 
           {/* Summary Metric Header */}
-          <div className="editorial-card p-6 flex flex-col md:flex-row items-center justify-between gap-6 bg-surface">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-gold mb-1">
+          <div className="editorial-card p-6 flex flex-col md:flex-row items-center justify-between gap-6 bg-white rounded-2xl border border-surface-hairline shadow-sm">
+            <div className="space-y-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-gold">
                 {t('quick_audit.results_title')}
               </div>
               <h2 className="text-title-lg font-black text-ink">
                 {auditResult.domain}
               </h2>
-              <div className="flex items-center gap-3 mt-2 text-body-sm text-ink-muted flex-wrap">
-                <span className="font-bold text-ink">
-                  {t('quick_audit.pages_crawled')}: <strong className="text-gold">{pages.length}</strong>
-                </span>
-                <span>&bull;</span>
-                <span className="font-semibold text-emerald-600">
-                  {auditResult.summary.status_distribution.ok_200} 200 OK
-                </span>
-                <span>&bull;</span>
-                <span className="font-semibold text-amber-600">
-                  {auditResult.summary.status_distribution.redirect_3xx} {isAr ? 'تحويلات' : 'Redirects'}
-                </span>
-                <span>&bull;</span>
-                <span className="font-semibold text-rose-600">
-                  {auditResult.summary.status_distribution.not_found_404} {isAr ? 'أخطاء 404' : 'Broken (404)'}
-                </span>
-                <span>&bull;</span>
-                <span className="font-semibold text-purple-600">
-                  {cannibalization.length} {isAr ? 'تنافس كلمات' : 'Cannibalization'}
-                </span>
+              
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface border border-surface-hairline text-xs font-bold text-ink shadow-sm">
+                  <span className="text-ink-muted">{t('quick_audit.pages_crawled')}:</span>
+                  <span className="text-gold font-extrabold">{pages.length}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/70 text-xs font-bold text-emerald-700 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>{auditResult.summary.status_distribution.ok_200} {isAr ? 'صفحة سليمة (200)' : '200 OK'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/70 text-xs font-bold text-amber-700 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  <span>{auditResult.summary.status_distribution.redirect_3xx} {isAr ? 'تحويلات (301)' : 'Redirects (301)'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200/70 text-xs font-bold text-rose-700 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  <span>{auditResult.summary.status_distribution.not_found_404} {isAr ? 'أخطاء (404)' : 'Broken (404)'}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-200/70 text-xs font-bold text-purple-700 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                  <span>{cannibalization.length} {isAr ? 'تنافس كلمات' : 'Cannibalization'}</span>
+                </div>
               </div>
             </div>
 
-            <div className="shrink-0 flex items-center gap-4">
+            <div className="shrink-0 flex items-center justify-center">
               <GaugeChart score={healthScore || 80} label={t('quick_audit.score_label')} />
             </div>
           </div>
@@ -524,7 +532,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={onNavigateToSiteReport}
-              className="p-4 bg-white rounded-xl border border-gold-border/60 hover:border-gold hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+              className="p-4 bg-white rounded-xl border border-gold-border/60 hover:border-gold hover:shadow-md transition-all duration-200 flex items-center justify-between text-right rtl:text-right ltr:text-left group active:scale-[0.99]"
             >
               <div>
                 <div className="text-xs font-bold uppercase text-gold">
@@ -534,12 +542,14 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
                   {t('quick_audit.view_site_report')}
                 </div>
               </div>
-              <TrendingUp className="w-5 h-5 text-gold group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+              <div className="w-8 h-8 rounded-lg bg-gold-tint border border-gold-border/60 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-4 h-4 text-gold group-hover:scale-110 transition-transform" />
+              </div>
             </button>
 
             <button
               onClick={onNavigateToIssues}
-              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-rose-300 hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-rose-300 hover:shadow-md transition-all duration-200 flex items-center justify-between text-right rtl:text-right ltr:text-left group active:scale-[0.99]"
             >
               <div>
                 <div className="text-xs font-bold uppercase text-rose-600">
@@ -549,12 +559,14 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
                   {t('quick_audit.view_issues').replace('{count}', String(auditResult.issues.length))}
                 </div>
               </div>
-              <AlertTriangle className="w-5 h-5 text-rose-500 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+              <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-200/60 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
+              </div>
             </button>
 
             <button
               onClick={onNavigateToPages}
-              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-blue-300 hover:shadow-md transition-all flex items-center justify-between text-right rtl:text-right ltr:text-left group"
+              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-blue-300 hover:shadow-md transition-all duration-200 flex items-center justify-between text-right rtl:text-right ltr:text-left group active:scale-[0.99]"
             >
               <div>
                 <div className="text-xs font-bold uppercase text-blue-600">
@@ -564,7 +576,9 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
                   {t('quick_audit.view_pages').replace('{count}', String(pages.length))}
                 </div>
               </div>
-              <FileText className="w-5 h-5 text-blue-500 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 transition-transform" />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/60 flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
+              </div>
             </button>
           </div>
 

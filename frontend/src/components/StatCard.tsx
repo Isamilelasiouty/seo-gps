@@ -58,9 +58,9 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`editorial-card p-4 transition-all cursor-pointer hover:shadow-md ${styles.border}`}
+      className={`editorial-card p-5 transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${styles.border}`}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2.5">
         <span className="eyebrow">{label}</span>
         {change !== undefined && (
           <span
@@ -69,11 +69,11 @@ export const StatCard: React.FC<StatCardProps> = ({
             }`}
           >
             {change > 0 ? (
-              <ArrowUpRight className="w-3 h-3 mr-0.5" />
+              <ArrowUpRight className="w-3 h-3 me-0.5" />
             ) : change < 0 ? (
-              <ArrowDownRight className="w-3 h-3 mr-0.5" />
+              <ArrowDownRight className="w-3 h-3 me-0.5" />
             ) : (
-              <Minus className="w-3 h-3 mr-0.5" />
+              <Minus className="w-3 h-3 me-0.5" />
             )}
             {change > 0 ? `+${change}` : change}
           </span>

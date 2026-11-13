@@ -33,6 +33,7 @@ import {
   X,
   Users,
   User,
+  Info,
 } from 'lucide-react';
 
 interface SiteReportPageProps {
@@ -1126,15 +1127,18 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
               </div>
 
               {emailFeedback && (
-                <div className="space-y-3 p-3.5 rounded-xl bg-gold-tint/40 border border-gold-border">
-                  <div className="text-xs font-bold text-ink leading-relaxed">
-                    {emailFeedback}
+                <div className="space-y-3 p-4 rounded-2xl bg-gold-tint/40 border border-gold-border shadow-sm">
+                  <div className="flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-gold shrink-0 mt-0.5" />
+                    <div className="text-xs font-bold text-ink leading-relaxed">
+                      {emailFeedback}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 pt-1 border-t border-gold-border/50">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gold-border/50">
                     <button
                       type="button"
                       onClick={handleExportPrint}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold text-white text-xs font-bold hover:bg-gold-hover shadow-sm"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gold text-white text-xs font-bold hover:bg-gold-hover shadow-sm transition-all duration-200 active:scale-95"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>{isAr ? 'تحميل التقرير PDF' : 'Download PDF Report'}</span>
@@ -1142,7 +1146,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
                     <button
                       type="button"
                       onClick={handleExportHTML}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-ink text-xs font-bold hover:border-gold"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-surface-hairline text-ink text-xs font-bold hover:border-gold shadow-sm transition-all duration-200 active:scale-95"
                     >
                       <Code className="w-3.5 h-3.5 text-gold" />
                       <span>{isAr ? 'تحميل التقرير HTML' : 'Download HTML Report'}</span>

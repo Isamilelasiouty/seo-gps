@@ -178,13 +178,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-body-md transition-colors text-left rtl:text-right ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-body-sm transition-all duration-200 text-left rtl:text-right ${
                 isActive
-                  ? 'bg-gold-tint text-gold-hover font-bold border border-gold-border'
-                  : 'text-ink-muted hover:text-ink hover:bg-surface-card'
+                  ? 'bg-gold-tint text-gold font-extrabold border border-gold-border/80 shadow-sm'
+                  : 'text-ink-muted hover:text-ink hover:bg-gold-tint/30 font-medium'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-gold' : 'text-ink-muted'}`} />
+              <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-gold' : 'text-ink-muted'}`} />
               <span>{item.label}</span>
             </button>
           );

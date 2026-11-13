@@ -27,13 +27,13 @@ export const Header: React.FC<HeaderProps> = ({
   const displayName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || t('header.my_account');
 
   return (
-    <header className="h-16 border-b border-surface-hairline bg-surface-card px-6 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 border-b border-surface-hairline/80 bg-white/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_3px_0_rgba(22,20,15,0.02)]">
       {/* Brand & Creator Left Section */}
       <div className="flex items-center gap-3">
         <img
           src="./brand/logo.png"
           alt="Ismail El Asiouty Logo"
-          className="h-9 w-auto object-contain"
+          className="h-9 w-auto object-contain transition-transform hover:scale-105 duration-200"
           onError={(e) => {
             (e.target as HTMLElement).style.display = 'none';
           }}
@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Quick Audit Button */}
         <button
           onClick={onOpenQuickAudit}
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gold-border bg-gold-tint/40 text-body-sm font-bold text-gold hover:bg-gold-tint transition-all"
+          className="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-gold-border/80 bg-gold-tint/50 text-body-sm font-bold text-gold hover:bg-gold-tint hover:shadow-sm transition-all duration-200 active:scale-95"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>{t('nav.quick_audit')}</span>
@@ -62,17 +62,17 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Language Switch */}
         <button
           onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-hairline text-body-sm text-ink hover:border-gold-border hover:bg-gold-tint/50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-hairline text-body-sm text-ink hover:border-gold-border/60 hover:bg-surface font-semibold transition-all duration-200 active:scale-95"
           title="Switch Language"
         >
           <Globe className="w-4 h-4 text-gold" />
-          <span className="font-semibold">{locale === 'en' ? 'العربية' : 'English'}</span>
+          <span>{locale === 'en' ? 'العربية' : 'English'}</span>
         </button>
 
         {/* Help & Docs Drawer */}
         <button
           onClick={onOpenHelp}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-body-sm text-ink-muted hover:text-ink hover:bg-surface transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-body-sm text-ink-muted hover:text-ink hover:bg-surface transition-all duration-200"
         >
           <HelpCircle className="w-4 h-4 text-ink-muted" />
           <span className="hidden lg:inline">{t('header.help')}</span>
