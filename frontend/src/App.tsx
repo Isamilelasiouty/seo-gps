@@ -415,8 +415,16 @@ export const AppContent: React.FC = () => {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0 && !(parsed.length === 1 && parsed[0].checkId === 'connection_timeout')) {
-            return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const hasTimeoutError = parsed.some(
+              (i: any) => i.checkId === 'connection_timeout' || (i.url && i.url.startsWith('/https:'))
+            );
+            if (!hasTimeoutError) {
+              return parsed.map((i: any) => ({
+                ...i,
+                url: (i.url || '').replace(/^\/+(https?:\/\/)/i, '$1'),
+              }));
+            }
           }
         } catch (e) {}
       }
@@ -430,8 +438,16 @@ export const AppContent: React.FC = () => {
     if (quickSaved) {
       try {
         const parsed = JSON.parse(quickSaved);
-        if (Array.isArray(parsed) && parsed.length > 0 && !(parsed.length === 1 && parsed[0].checkId === 'connection_timeout')) {
-          return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasTimeoutError = parsed.some(
+            (i: any) => i.checkId === 'connection_timeout' || (i.url && i.url.startsWith('/https:'))
+          );
+          if (!hasTimeoutError) {
+            return parsed.map((i: any) => ({
+              ...i,
+              url: (i.url || '').replace(/^\/+(https?:\/\/)/i, '$1'),
+            }));
+          }
         }
       } catch (e) {}
     }

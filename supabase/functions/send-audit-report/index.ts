@@ -52,7 +52,7 @@ serve(async (req) => {
       const timestamp = new Date().toLocaleString();
       emailHtml = `
         <div style="font-family: Arial, sans-serif; padding: 24px; color: #16140F; background: #FAFAF7;">
-          <h2 style="color: #B8892B; margin-bottom: 12px;">مستخدم جديد سجل في SEO GPS 🎉</h2>
+          <h2 style="color: #B8892B; margin-bottom: 12px;">مستخدم جديد سجل في SEO GPS</h2>
           <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 8px;">
             <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">اسم المستخدم:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userName || "غير محدد"}</td></tr>
             <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">البريد الإلكتروني:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userEmail}</td></tr>
@@ -71,7 +71,7 @@ serve(async (req) => {
       const timestamp = new Date().toLocaleString();
       emailHtml = `
         <div style="font-family: Arial, sans-serif; padding: 24px; color: #16140F; background: #FAFAF7;">
-          <h2 style="color: #B8892B; margin-bottom: 12px;">مشترك / عميل محتمل جديد في SEO GPS 📈</h2>
+          <h2 style="color: #B8892B; margin-bottom: 12px;">مشترك / عميل محتمل جديد في SEO GPS</h2>
           <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 8px;">
             <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">الاسم:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userName || "غير محدد"}</td></tr>
             <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #E5E5DE;">البريد الإلكتروني:</td><td style="padding: 10px; border-bottom: 1px solid #E5E5DE;">${userEmail}</td></tr>
@@ -109,9 +109,8 @@ serve(async (req) => {
 
       emailHtml = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 12px; overflow: hidden;">
-          <div style="background: #16140F; padding: 24px; text-align: center; color: #FFFFFF;">
-            <h1 style="color: #B8892B; margin: 0; font-size: 24px; font-weight: 800;">SEO GPS</h1>
-            <p style="color: #98A2B3; margin: 6px 0 0; font-size: 14px;">Instant Full-Site Technical Audit & Regression Report</p>
+          <div style="background: #FFFFFF; padding: 24px; text-align: center; border-bottom: 2px solid #E9D9A8;">
+            <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 44px; width: auto; display: block; margin: 0 auto;" />
           </div>
 
           <div style="padding: 24px;">
@@ -198,7 +197,7 @@ serve(async (req) => {
       const ownerAlertHtml = `
         <div style="background: #FFFBEB; border: 1px solid #FDE68A; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-family: Arial, sans-serif;">
           <p style="margin: 0; color: #B45309; font-weight: bold; font-size: 14px;">
-            🔔 طلب تقرير عميل جديد في SEO GPS:
+            طلب تقرير عميل جديد في SEO GPS:
           </p>
           <p style="margin: 6px 0 0; color: #92400E; font-size: 13px;">
             طلب العميل <strong>${userName || "غير محدد"}</strong> (${targetRecipient}) فحص الموقع <strong>${domain}</strong>.

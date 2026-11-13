@@ -59,6 +59,7 @@ function quickAuditApiPlugin(): Plugin {
               const data = JSON.parse(body || '{}');
               const {
                 recipient,
+                userName = '',
                 domain = 'techhouseksa.com',
                 rootUrl = 'https://techhouseksa.com',
                 healthScore = 92,
@@ -108,13 +109,13 @@ function quickAuditApiPlugin(): Plugin {
                 subject: `[SEO GPS] تقرير الفحص التقني الشامل: ${domain} (درجة الصحة: ${healthScore}/100)`,
                 html: `
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E5E5DE; border-radius: 12px; overflow: hidden;">
-                    <div style="background: #16140F; padding: 24px; text-align: center; color: #FFFFFF;">
-                      <h1 style="color: #B8892B; margin: 0; font-size: 24px; font-weight: 800;">SEO GPS</h1>
-                      <p style="color: #98A2B3; margin: 6px 0 0; font-size: 14px;">Instant Full-Site Technical Audit & Regression Report</p>
+                    <div style="background: #FFFFFF; padding: 24px; text-align: center; border-bottom: 2px solid #E9D9A8;">
+                      <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 44px; width: auto; display: block; margin: 0 auto;" />
                     </div>
                     <div style="padding: 24px;">
                       <h2 style="font-size: 18px; color: #16140F; margin: 0 0 4px;">نتائج فحص الموقع: <span style="color: #B8892B;">${domain}</span></h2>
                       <p style="color: #667085; font-size: 13px; margin: 0 0 16px;">الرابط المفحوص: <a href="${rootUrl}" style="color: #B8892B;">${rootUrl}</a></p>
+                      ${userName ? `<p style="color: #667085; font-size: 12px; margin: 0 0 16px;">المستلم / صاحب الطلب: <strong>${userName}</strong> (${recipient})</p>` : ''}
                       
                       <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #E5E5DE; border-radius: 8px;">
                         <tr style="background: #FAFAF7; border-bottom: 1px solid #E5E5DE;">
@@ -145,11 +146,11 @@ function quickAuditApiPlugin(): Plugin {
                       </div>
 
                       <div style="text-align: center; margin-top: 24px;">
-                        <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">فتح التقرير التفاعلي في المنصة &rarr;</a>
+                        <a href="https://isamilelasiouty.github.io/seo-gps/#/site-report" style="display: inline-block; background: #B8892B; color: #FFFFFF; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px;">عرض التقرير التفاعلي الكامل في المنصة &rarr;</a>
                       </div>
                     </div>
                     <div style="background: #F9FAFB; padding: 16px; text-align: center; font-size: 12px; color: #667085; border-top: 1px solid #E5E5DE;">
-                      SEO GPS — Portfolio-Grade Technical Audit SaaS by Ismail El Asiouty
+                      SEO GPS &bull; منصة مراقبة تراجعات السيو بواسطة إسماعيل الأسيوطي
                     </div>
                   </div>
                 `
@@ -173,6 +174,44 @@ function quickAuditApiPlugin(): Plugin {
               } else {
                 const errText = await resendRes.text();
                 console.warn('[SendEmail API] Resend returned error:', errText);
+                if (resendRes.status === 403 && (errText.includes('testing emails') || errText.includes('resend.com/domains'))) {
+                  // Resend sandbox active (onboarding@resend.dev): forward full report to Ismail El Asiouty
+                  try {
+                    const ownerPayload = {
+                      from: emailFrom,
+                      to: ['ismailelasiouty3@gmail.com'],
+                      subject: `[SEO GPS - طلب تقرير عميل] ${userName || recipient} - موقع: ${domain}`,
+                      html: `
+                        <div style="background: #FFFFFF; padding: 20px; border-bottom: 2px solid #E9D9A8; text-align: center;">
+                          <img src="https://isamilelasiouty.github.io/seo-gps/brand/logo.png" alt="SEO GPS" style="height: 40px; margin: 0 auto; display: block;" />
+                        </div>
+                        <div style="padding: 20px; font-family: Arial, sans-serif; color: #16140F; background: #FAFAF7;">
+                          <div style="background: #FFF8E1; border: 1px solid #FFE082; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+                            <strong style="color: #B45309;">طلب تقرير عميل جديد:</strong>
+                            <p style="margin: 4px 0 0; font-size: 13px; color: #78350F;">
+                              طلب العميل <strong>${userName || 'غير محدد'}</strong> (${recipient}) استلام تقرير فحص الموقع <strong>${domain}</strong>.
+                              <br />
+                              <span style="font-size: 12px; color: #92400E;">(نظراً لأن النطاق في Resend تجريبي onboarding@resend.dev، تم إرسال هذه النسخة إلى بريدك لمتابعة العميل فوراً).</span>
+                            </p>
+                          </div>
+                          ${emailPayload.html}
+                        </div>
+                      `
+                    };
+                    await fetch('https://api.resend.com/emails', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${resendApiKey}`,
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'SEOGPS/1.0',
+                      },
+                      body: JSON.stringify(ownerPayload),
+                    });
+                  } catch (e) {}
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ success: true, isSandboxRestriction: true, forwardedToOwner: true }));
+                  return;
+                }
                 res.writeHead(resendRes.status, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: false, error: errText }));
               }

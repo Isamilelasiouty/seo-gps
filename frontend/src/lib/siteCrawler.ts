@@ -2487,7 +2487,7 @@ export async function executeSiteCrawl(options: {
           pageIssues.push({
             id: `iss-timeout-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             fingerprint: `fp-timeout-${url}`,
-            url,
+            url: (url || '').replace(/^\/+(https?:\/\/)/i, '$1'),
             checkId: 'connection_timeout',
             title: isAr ? 'فشل الاتصال بالصفحة أو انتهاء مهلة الاستجابة' : 'Connection Timeout / Network Unreachable',
             title_ar: 'فشل الاتصال بالصفحة أو انتهاء مهلة الاستجابة',

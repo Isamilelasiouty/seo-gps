@@ -261,14 +261,14 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
     if (sent && !isSandboxBlocked) {
       setEmailFeedback(
         isAr
-          ? `✅ تم إرسال نسخة من التقرير بنجاح إلى: ${cleanEmail}`
-          : `✅ Report successfully dispatched to: ${cleanEmail}`
+          ? `تم إرسال نسخة من التقرير بنجاح إلى بريدك الإلكتروني: ${cleanEmail}`
+          : `Report successfully dispatched to: ${cleanEmail}`
       );
     } else {
       setEmailFeedback(
         isAr
-          ? `✅ تم تسجيل بياناتك وبريدك (${cleanEmail}) لمراقبة الموقع بنجاح! تم حفظ طلبك وإرسال إشعار للإدارة. يمكنك أيضًا تحميل التقرير الكامل فورًا بصيغة PDF أو HTML عبر الأزرار أدناه:`
-          : `✅ Your details and email (${cleanEmail}) have been registered for automated monitoring! You can also download your full report immediately via PDF or HTML below:`
+          ? `تم تسجيل بياناتك وبريدك (${cleanEmail}) لمراقبة الموقع بنجاح وإشعار الإدارة! تنبيه: إرسال التقارير مباشرة إلى بريد خارجي يتطلب توثيق نطاق في Resend (resend.com/domains). يمكنك تحميل التقرير الكامل فوراً بصيغة PDF أو HTML أدناه:`
+          : `Your details and email (${cleanEmail}) have been registered for automated monitoring! Note: Sending directly to third-party domains requires verifying your domain on Resend (resend.com/domains). You can download your full report immediately via PDF or HTML below:`
       );
     }
     setIsSendingEmail(false);

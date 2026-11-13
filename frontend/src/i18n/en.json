@@ -164,7 +164,7 @@
     "analyzing_cannibalization": "Analyzing keyword cannibalization and clustering intents...",
     "email_sent_success": "Audit report successfully dispatched to: {email}",
     "email_fallback_notice": "Report saved to dashboard! External email delivery requires verified domain credentials.",
-    "post_audit_success_title": "Audit Complete! Report Dispatched & Monitoring Activated! 🚀",
+    "post_audit_success_title": "Audit Complete! Report Dispatched & Monitoring Activated",
     "post_audit_success_desc": "Full audit findings have been dispatched to: {email}. You can now download the report in your preferred format or explore details below.",
     "download_pdf_btn": "Download PDF (Print Report)",
     "download_html_btn": "Download Standalone HTML (Offline)",
