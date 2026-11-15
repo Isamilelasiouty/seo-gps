@@ -730,9 +730,36 @@ export const AppContent: React.FC = () => {
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
-        onAuthSuccess={(user) => {
+        onAuthSuccess={async (user) => {
           setCurrentUser(user);
-          loadUserProjects(user.id);
+          try {
+            localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+          } catch (e) {}
+
+          // If there is an unsaved guest project created before login, claim it under user.id
+          if (activeProject && activeProject.id.startsWith('proj-') && activeProject.domain !== 'example.com') {
+            try {
+              const { data: inserted } = await supabase
+                .from('projects')
+                .insert({
+                  user_id: user.id,
+                  name: activeProject.name,
+                  domain: activeProject.domain,
+                  root_url: activeProject.root_url,
+                  sitemap_url: activeProject.sitemap_url || null,
+                  daily_crawl_hour: activeProject.daily_crawl_hour ?? 6,
+                  timezone: activeProject.timezone || 'UTC',
+                })
+                .select()
+                .single();
+              if (inserted) {
+                activeProject.id = inserted.id;
+              }
+            } catch (err) {
+              console.warn('Could not claim guest project on login:', err);
+            }
+          }
+          await loadUserProjects(user.id);
         }}
       />
 
