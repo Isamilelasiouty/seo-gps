@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useI18n } from '../i18n';
-import { Globe, HelpCircle, User, LogOut, Linkedin, Mail, Sparkles, ChevronDown } from 'lucide-react';
+import { Globe, HelpCircle, User, LogOut, Linkedin, Mail, Sparkles, ChevronDown, Cpu } from 'lucide-react';
 
 interface HeaderProps {
   onOpenHelp: () => void;
   onOpenAuth: () => void;
   onOpenQuickAudit: () => void;
+  onOpenAiAdvisor?: () => void;
   currentUser: any;
   onLogout: () => void;
   activeProjectName?: string;
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHelp,
   onOpenAuth,
   onOpenQuickAudit,
+  onOpenAiAdvisor,
   currentUser,
   onLogout,
   activeProjectName,
@@ -50,6 +52,17 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls: Quick Audit, Language Switch, Help, User */}
       <div className="flex items-center gap-3">
+        {/* AI SEO Advisor Button */}
+        {onOpenAiAdvisor && (
+          <button
+            onClick={onOpenAiAdvisor}
+            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50/70 text-body-sm font-bold text-blue-700 hover:bg-blue-100 hover:shadow-xs transition-all duration-200 active:scale-95 cursor-pointer"
+          >
+            <Cpu className="w-3.5 h-3.5 text-blue-600" />
+            <span>{locale === 'en' ? 'AI SEO Advisor' : 'مستشار السيو الذكي'}</span>
+          </button>
+        )}
+
         {/* Quick Audit Button */}
         <button
           onClick={onOpenQuickAudit}

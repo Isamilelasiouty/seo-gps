@@ -7,6 +7,7 @@ import { HelpDrawer } from './components/HelpDrawer';
 import { AddProjectModal } from './components/AddProjectModal';
 import { EditProjectModal, ProjectData } from './components/EditProjectModal';
 import { AuthModal } from './components/AuthModal';
+import { AccessGateModal } from './components/AccessGateModal';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
 import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
 import { syncLeadsFromCloud } from './lib/leadTracker';
@@ -20,6 +21,7 @@ import { SiteReportPage } from './pages/SiteReportPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AiAdvisorPage } from './pages/AiAdvisorPage';
 
 const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
 const LAST_ACTIVE_PROJECT_KEY = 'seo_gps_last_active_project_id';
@@ -81,6 +83,42 @@ export const AppContent: React.FC = () => {
   });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Mandatory Pre-Audit Registration Gate
+  const [isAccessGateOpen, setIsAccessGateOpen] = useState<boolean>(() => {
+    try {
+      const reg = localStorage.getItem('seo_gps_registered_user');
+      const session = localStorage.getItem(USER_SESSION_KEY);
+      return !reg && !session;
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const handleAccessGateSuccess = (userData: { name: string; email: string; domain?: string }) => {
+    setIsAccessGateOpen(false);
+    if (userData.domain) {
+      const cleanDom = userData.domain.toLowerCase().trim();
+      const existing = projects.find((p) => p.domain.toLowerCase() === cleanDom);
+      if (existing) {
+        setActiveProject(existing);
+      } else {
+        const newP: ProjectData = {
+          id: `proj-${Date.now()}`,
+          name: userData.name ? `${userData.name} - ${cleanDom}` : cleanDom,
+          domain: cleanDom,
+          root_url: `https://${cleanDom}`,
+          sitemap_url: `https://${cleanDom}/sitemap.xml`,
+          daily_crawl_hour: 6,
+          timezone: 'UTC',
+          recipient_email: userData.email,
+          frequency: 'daily',
+          health_score: 100,
+        };
+        handleProjectAdded(newP);
+      }
+    }
+  };
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<ProjectData | null>(null);
@@ -605,6 +643,13 @@ export const AppContent: React.FC = () => {
             }}
           />
         );
+      case 'ai_advisor':
+        return (
+          <AiAdvisorPage
+            activeProject={activeProject}
+            issues={getProjectIssues()}
+          />
+        );
       case 'pages':
         return <PagesExplorerPage pages={getProjectPages()} />;
       case 'history':
@@ -659,6 +704,7 @@ export const AppContent: React.FC = () => {
         onOpenHelp={() => setIsHelpOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenQuickAudit={() => setCurrentTab('quick_audit')}
+        onOpenAiAdvisor={() => setCurrentTab('ai_advisor')}
         currentUser={currentUser}
         onLogout={handleLogout}
         activeProjectName={activeProject?.name}
@@ -666,7 +712,7 @@ export const AppContent: React.FC = () => {
       />
 
       {/* Main Layout: Sidebar + Page Container */}
-      <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
+      <div className="flex-1 flex max-w-[1720px] w-full mx-auto">
         <Sidebar
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
@@ -682,6 +728,12 @@ export const AppContent: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+
+      {/* Mandatory Pre-Audit Registration Gate */}
+      <AccessGateModal
+        isOpen={isAccessGateOpen && !currentUser}
+        onSuccess={handleAccessGateSuccess}
+      />
 
       {/* Auth Modal (Login / Sign Up) */}
       <AuthModal

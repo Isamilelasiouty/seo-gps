@@ -30,6 +30,7 @@ serve(async (req) => {
   }
 
   try {
+    const ownerEmail = "ismailelasiouty3@gmail.com";
     const body = await req.json();
     const {
       type = "audit_report",
@@ -76,11 +77,44 @@ serve(async (req) => {
       const parsedLeads: any[] = [];
       const seenEmails = new Set<string>();
 
+      // Baseline verified profiles for legacy email logs
+      const KNOWN_PROFILES: Record<string, { name: string; domain?: string }> = {
+        "abeerabdelhady200@gmail.com": { name: "Abeer Abdelhady Mohamed", domain: "sparktorecovery.com" },
+        "fpicoseo@gmail.com": { name: "Fpico SEO (dmr)", domain: "digitalagencynetwork.com" },
+        "ismeaelelasiouty@gmail.com": { name: "Ismail (Site Owner)", domain: "gardendesignkuwait.com" },
+        "info@mohamedelsaeed.com": { name: "Mohamed ElSaeed", domain: "mohamedelsaeed.com" },
+        "alrawaacompany0@gmail.com": { name: "Osama Bakry", domain: "alrawaacompany.com" },
+        "adamwetet22@gmail.com": { name: "Adam Ahmed", domain: "gardendesignkuwait.com" },
+        "seobeshoy@gmail.com": { name: "Beshoy Reda", domain: "techhouseksa.com" },
+        "asmaylalasywty48@gmail.com": { name: "ISAM El Asiouty", domain: "techhouseksa.com" },
+        "seotec3@gmail.com": { name: "اسماعيل", domain: "techhouseksa.com" },
+        "heuwjpoop@gmail.com": { name: "TechHouse User", domain: "techhouseksa.com" },
+        "ismailelasiouty3@gmail.com": { name: "Ismail El Asiouty", domain: "techhouseksa.com" },
+      };
+
       if (logsData && Array.isArray(logsData)) {
         for (const log of logsData) {
           const subj = log.subject || "";
+          const recipient = (log.recipient || "").toLowerCase().trim();
+          if (!recipient) continue;
+
+          // Never let notifications sent TO Ismail overwrite Ismail's identity with someone else's name
+          if (recipient === ownerEmail.toLowerCase()) {
+            if (!seenEmails.has(ownerEmail.toLowerCase())) {
+              seenEmails.add(ownerEmail.toLowerCase());
+              parsedLeads.push({
+                id: log.id,
+                name: "Ismail El Asiouty",
+                email: ownerEmail.toLowerCase(),
+                domain: "techhouseksa.com",
+                source: "manual",
+                created_at: log.sent_at,
+              });
+            }
+            continue;
+          }
+
           let leadName = "";
-          let leadEmail = (log.recipient || "").toLowerCase().trim();
           let leadDomain = "";
 
           // Case A: [Lead: Name] Site: Domain
@@ -90,29 +124,49 @@ serve(async (req) => {
             if (leadMatch[2]) leadDomain = leadMatch[2].trim();
           }
 
-          // Case B: [SEO GPS] مشترك جديد طلب تقرير الموقع: Name/Email
-          const subMatch = subj.match(/مشترك جديد طلب تقرير الموقع:\s*(.+)$/i);
-          if (subMatch) {
-            const rawVal = subMatch[1].trim();
-            if (rawVal.includes("@")) {
-              leadEmail = rawVal.toLowerCase().trim();
-              leadName = rawVal.split("@")[0];
-            } else {
-              leadName = rawVal;
+          // Case B: [SEO GPS] تقرير فحص الموقع الشامل: domain
+          const reportMatch = subj.match(/تقرير فحص الموقع الشامل:\s*([^\s]+)/i);
+          if (reportMatch) {
+            leadDomain = reportMatch[1].trim();
+          }
+
+          // Check known profile map fallback
+          const known = KNOWN_PROFILES[recipient];
+          if (known) {
+            if (!leadName || leadName === recipient.split("@")[0]) {
+              leadName = known.name;
+            }
+            if (!leadDomain && known.domain) {
+              leadDomain = known.domain;
             }
           }
 
-          if (leadEmail && !seenEmails.has(leadEmail)) {
-            seenEmails.add(leadEmail);
+          if (!seenEmails.has(recipient)) {
+            seenEmails.add(recipient);
             parsedLeads.push({
               id: log.id,
-              name: leadName || leadEmail.split("@")[0],
-              email: leadEmail,
-              domain: leadDomain || undefined,
+              name: leadName || (known ? known.name : recipient.split("@")[0]),
+              email: recipient,
+              domain: leadDomain || (known ? known.domain : undefined),
               source: "site_report",
               created_at: log.sent_at,
             });
           }
+        }
+      }
+
+      // Ensure all known profiles are present if not found in logs
+      for (const [email, profile] of Object.entries(KNOWN_PROFILES)) {
+        if (!seenEmails.has(email)) {
+          seenEmails.add(email);
+          parsedLeads.push({
+            id: `legacy-${email}`,
+            name: profile.name,
+            email: email,
+            domain: profile.domain,
+            source: "signup",
+            created_at: new Date().toISOString(),
+          });
         }
       }
 
@@ -266,7 +320,6 @@ serve(async (req) => {
     }
 
     const emailFrom = Deno.env.get("EMAIL_FROM") || "SEO GPS <onboarding@resend.dev>";
-    const ownerEmail = "ismailelasiouty3@gmail.com";
     let targetRecipient = recipient || userEmail || ownerEmail;
     let subject = "";
     let contentHtml = "";

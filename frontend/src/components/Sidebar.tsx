@@ -15,6 +15,7 @@ import {
   BarChart3,
   PanelLeftClose,
   PanelLeftOpen,
+  Cpu,
 } from 'lucide-react';
 import { ProjectData } from './EditProjectModal';
 
@@ -66,6 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'overview', label: t('nav.overview'), icon: LayoutDashboard },
     { id: 'site_report', label: t('nav.site_report') || (isAr ? 'تقرير الموقع الشامل' : 'Site Report'), icon: Sparkles },
     { id: 'issues', label: t('nav.issues'), icon: AlertTriangle },
+    { id: 'ai_advisor', label: isAr ? 'مستشار السيو الذكي' : 'AI SEO Advisor', icon: Cpu },
     { id: 'pages', label: t('nav.pages'), icon: FileText },
     { id: 'history', label: t('nav.history'), icon: History },
     { id: 'settings', label: t('nav.settings'), icon: Settings },
