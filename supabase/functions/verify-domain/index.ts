@@ -73,7 +73,8 @@ serve(async (req) => {
       await supabase
         .from("projects")
         .update({ is_verified: true, verification_method: method })
-        .eq("id", projectId);
+        .eq("id", projectId)
+        .eq("user_id", user.id);
 
       return new Response(JSON.stringify({ verified: true, message: "Domain successfully verified!" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

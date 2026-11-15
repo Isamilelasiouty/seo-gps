@@ -65,22 +65,23 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    const { cleanRoot, domain } = sanitizeInputUrl(rootUrl);
     setTimeout(() => {
       onSave({
         ...project,
-        name,
-        root_url: rootUrl,
-        domain: rootUrl.replace(/https?:\/\//, '').split('/')[0] || project.domain,
-        sitemap_url: sitemapUrl,
+        name: name.trim() || domain || project.name,
+        root_url: cleanRoot || rootUrl,
+        domain: domain || project.domain,
+        sitemap_url: sitemapUrl.trim() || undefined,
         frequency,
         daily_crawl_hour: parseInt(crawlHour, 10),
         crawl_day: crawlDay,
         timezone,
-        recipient_email: email,
+        recipient_email: email.trim(),
       });
       setIsSaving(false);
       onClose();
-    }, 400);
+    }, 300);
   };
 
   const handleDelete = () => {
