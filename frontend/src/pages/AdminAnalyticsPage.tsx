@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n';
 import { supabase } from '../lib/supabase';
-import { getAllLeads, LeadSubscriber } from '../lib/leadTracker';
+import { getAllLeads, syncLeadsFromCloud, LeadSubscriber } from '../lib/leadTracker';
 import {
   ShieldCheck,
   Users,
@@ -130,58 +130,31 @@ export const AdminAnalyticsPage: React.FC = () => {
   const fetchAdminData = async () => {
     setLoading(true);
     try {
-      // 1. Projects count & data
+      // 1. Fetch leads & projects directly via Cloud Edge Function (service role)
+      const cloudResult = await syncLeadsFromCloud();
+      const allMerged = cloudResult.leads.length > 0 ? cloudResult.leads : getAllLeads();
+      setLeads(allMerged);
+
+      // 2. Fetch projects count directly from client if authenticated
       const { data: projectsData, count: projectCount } = await supabase
         .from('projects')
         .select('*', { count: 'exact' });
 
-      // 2. Audit runs count
+      // 3. Audit runs count
       const { count: auditCount } = await supabase
         .from('audit_runs')
         .select('*', { count: 'exact', head: true });
 
-      // 3. Email logs for additional leads
-      let dbLeads: LeadSubscriber[] = [];
-      try {
-        const { data: logsData } = await supabase
-          .from('email_logs')
-          .select('*')
-          .order('sent_at', { ascending: false });
-
-        if (logsData && Array.isArray(logsData)) {
-          dbLeads = logsData.map((log: any) => {
-            const subj = log.subject || '';
-            let leadName = '';
-            const matchName = subj.match(/\[Lead:\s*([^\]]+)\]/i);
-            if (matchName) leadName = matchName[1].trim();
-            return {
-              id: log.id,
-              name: leadName || log.recipient.split('@')[0],
-              email: log.recipient,
-              domain: subj.includes('for ') ? subj.split('for ')[1].trim() : undefined,
-              source: 'site_report' as const,
-              created_at: log.sent_at,
-            };
-          });
-        }
-      } catch (logErr) {
-        console.warn('Could not query email_logs:', logErr);
-      }
-
-      // Merge local leads with db leads
-      const allMerged = [...getAllLeads()];
-      dbLeads.forEach((dl) => {
-        if (!allMerged.some((m) => m.email.toLowerCase() === dl.email.toLowerCase())) {
-          allMerged.push(dl);
-        }
-      });
-      setLeads(allMerged);
+      const totalProj = Math.max(
+        cloudResult.projects.length,
+        projectCount || projectsData?.length || 1
+      );
 
       setStats({
         totalUsers: allMerged.length,
-        totalProjects: projectCount || projectsData?.length || 1,
+        totalProjects: totalProj,
         totalAudits: Math.max(1, auditCount || 0),
-        recentProjects: projectsData || [],
+        recentProjects: cloudResult.projects.length > 0 ? cloudResult.projects : (projectsData || []),
       });
     } catch (err) {
       console.warn('Admin stats fetch warning:', err);

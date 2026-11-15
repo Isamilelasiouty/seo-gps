@@ -47,6 +47,86 @@ serve(async (req) => {
     } = body;
 
     // -------------------------------------------------------------------------
+    // Mode: Get All Leads & Projects (Admin / Service Role Query, bypasses RLS)
+    // -------------------------------------------------------------------------
+    if (type === "get_leads") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      if (!supabaseUrl || !supabaseKey) {
+        return new Response(JSON.stringify({ success: false, error: "Missing Supabase config" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+      // 1. Fetch all email logs
+      const { data: logsData } = await supabaseClient
+        .from("email_logs")
+        .select("*")
+        .order("sent_at", { ascending: false });
+
+      // 2. Fetch all projects
+      const { data: projData } = await supabaseClient
+        .from("projects")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const parsedLeads: any[] = [];
+      const seenEmails = new Set<string>();
+
+      if (logsData && Array.isArray(logsData)) {
+        for (const log of logsData) {
+          const subj = log.subject || "";
+          let leadName = "";
+          let leadEmail = (log.recipient || "").toLowerCase().trim();
+          let leadDomain = "";
+
+          // Case A: [Lead: Name] Site: Domain
+          const leadMatch = subj.match(/\[Lead:\s*([^\]]+)\](?:\s*Site:\s*([^\s]+))?/i);
+          if (leadMatch) {
+            leadName = leadMatch[1].trim();
+            if (leadMatch[2]) leadDomain = leadMatch[2].trim();
+          }
+
+          // Case B: [SEO GPS] مشترك جديد طلب تقرير الموقع: Name/Email
+          const subMatch = subj.match(/مشترك جديد طلب تقرير الموقع:\s*(.+)$/i);
+          if (subMatch) {
+            const rawVal = subMatch[1].trim();
+            if (rawVal.includes("@")) {
+              leadEmail = rawVal.toLowerCase().trim();
+              leadName = rawVal.split("@")[0];
+            } else {
+              leadName = rawVal;
+            }
+          }
+
+          if (leadEmail && !seenEmails.has(leadEmail)) {
+            seenEmails.add(leadEmail);
+            parsedLeads.push({
+              id: log.id,
+              name: leadName || leadEmail.split("@")[0],
+              email: leadEmail,
+              domain: leadDomain || undefined,
+              source: "site_report",
+              created_at: log.sent_at,
+            });
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          leads: parsedLeads,
+          projects: projData || [],
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // -------------------------------------------------------------------------
     // Mode: Live Issue Re-Check & Fix Verification Probe
     // -------------------------------------------------------------------------
     if (type === "verify_issue") {
@@ -214,6 +294,51 @@ serve(async (req) => {
           <tr><td style="padding: 10px; font-weight: bold;">التاريخ:</td><td style="padding: 10px;">${new Date().toLocaleString()}</td></tr>
         </table>`
       );
+
+      // Permanently save lead and auto-sync project to Supabase with service_role
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+        if (supabaseUrl && supabaseKey && userEmail) {
+          const supabaseClient = createClient(supabaseUrl, supabaseKey);
+          await supabaseClient.from("email_logs").insert({
+            recipient: userEmail.toLowerCase().trim(),
+            subject: `[Lead: ${userName || userEmail.split("@")[0]}] Site: ${domain || "registered"}`,
+            status: "sent",
+            deltas_count: 0,
+          });
+
+          // If domain provided, ensure it appears in projects list
+          if (domain) {
+            const cleanDom = domain.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+            const { data: usersData } = await supabaseClient.auth.admin.listUsers();
+            const owner =
+              usersData?.users?.find((u) => u.email?.toLowerCase() === ownerEmail.toLowerCase()) ||
+              usersData?.users?.[0];
+
+            if (owner) {
+              const { data: existing } = await supabaseClient
+                .from("projects")
+                .select("id")
+                .eq("domain", cleanDom)
+                .limit(1);
+
+              if (!existing || existing.length === 0) {
+                await supabaseClient.from("projects").insert({
+                  user_id: owner.id,
+                  name: userName ? `${userName} - ${cleanDom}` : cleanDom,
+                  domain: cleanDom,
+                  root_url: `https://${cleanDom}`,
+                  daily_crawl_hour: 6,
+                  timezone: "UTC",
+                });
+              }
+            }
+          }
+        }
+      } catch (saveErr) {
+        console.warn("Could not auto-save lead and project to database:", saveErr);
+      }
     } else if (type === "broadcast_announcement") {
       const greeting = userName ? `أهلاً بك أستاذ ${userName}،` : "أهلاً بك،";
       subject = body.customSubject || "[SEO GPS] تحديث جديد في المنصة: واجهة مطورة وتتبع تراجعات فوري";

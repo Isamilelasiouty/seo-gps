@@ -13,6 +13,14 @@
   --text-ink: #0F172A;
   --text-muted: #64748B;
 
+  /* Google Developers Palette Tokens */
+  --google-blue: #1A73E8;
+  --google-green: #1E8E3E;
+  --google-amber: #F9AB00;
+  --google-red: #D93025;
+  --google-surface: #F8F9FA;
+  --google-card-border: #DADCE0;
+
   /* Severity Tokens */
   --color-critical: #EF4444;
   --color-warning: #F59E0B;
@@ -37,29 +45,114 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
-/* Modern Eye-Comfort Card Styling */
-.editorial-card {
+/* Google Developers Micro-Animations */
+@keyframes gFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gPulseBeacon {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(30, 142, 62, 0.6);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 7px rgba(30, 142, 62, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(30, 142, 62, 0);
+  }
+}
+
+@keyframes gShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-g-fade-in {
+  animation: gFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-g-pulse {
+  animation: gPulseBeacon 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Google Developers Aesthetic Cards */
+.editorial-card,
+.g-card {
   background-color: #FFFFFF;
-  border: 1px solid #EDF2F7;
+  border: 1px solid #E2E8F0;
   border-radius: 18px;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 4px 16px -2px rgba(15, 23, 42, 0.03);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.03), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+  transition: all 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.editorial-card:hover {
-  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.06);
+.editorial-card:hover,
+.g-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  border-color: #CBD5E1;
 }
 
-/* Floating Action Dock (like in reference UI) */
-.floating-dock {
-  background-color: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+/* Google Developers Chip / Badge */
+.g-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
   border-radius: 9999px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #E2E8F0;
+  background-color: #F8FAFC;
+  color: #334155;
+  transition: all 0.2s ease;
 }
 
+.g-chip:hover {
+  background-color: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+/* Google Developers Primary Pill Button */
+.g-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  background-color: #1A73E8;
+  color: #FFFFFF;
+  transition: all 0.22s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 1px 3px rgba(26, 115, 232, 0.24);
+}
+
+.g-btn-primary:hover {
+  background-color: #1557B0;
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35);
+  transform: translateY(-1px);
+}
+
+.g-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Table Row Smooth Highlight */
 tbody tr {
   transition: background-color 0.15s ease-in-out;
 }
@@ -70,8 +163,8 @@ tbody tr {
 
 .soft-ring:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(184, 137, 43, 0.2);
-  border-color: #B8892B;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
+  border-color: #1A73E8;
 }
 
 .eyebrow {

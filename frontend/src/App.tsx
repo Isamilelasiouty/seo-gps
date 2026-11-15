@@ -7,9 +7,9 @@ import { HelpDrawer } from './components/HelpDrawer';
 import { AddProjectModal } from './components/AddProjectModal';
 import { EditProjectModal, ProjectData } from './components/EditProjectModal';
 import { AuthModal } from './components/AuthModal';
-import { FloatingDock } from './components/FloatingDock';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
 import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
+import { syncLeadsFromCloud } from './lib/leadTracker';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -150,6 +150,8 @@ export const AppContent: React.FC = () => {
             } catch (e) {}
           }
         }
+        // Always sync any visitor registered projects and leads from cloud
+        await syncCloudProjects();
       } catch (err) {
         console.warn('Supabase session load error:', err);
       } finally {
@@ -184,6 +186,47 @@ export const AppContent: React.FC = () => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Synchronize projects from Cloud Edge Function (includes all visitor registered sites)
+  const syncCloudProjects = async () => {
+    try {
+      const cloud = await syncLeadsFromCloud();
+      if (cloud.projects && cloud.projects.length > 0) {
+        setProjects((prev) => {
+          const cleanCloud: ProjectData[] = cloud.projects
+            .filter((p: any) => p.domain && p.domain !== 'example.com')
+            .map((d: any) => ({
+              id: d.id,
+              name: d.name || d.domain,
+              domain: d.domain,
+              root_url: d.root_url || `https://${d.domain}`,
+              sitemap_url: d.sitemap_url || `https://${d.domain}/sitemap.xml`,
+              daily_crawl_hour: d.daily_crawl_hour || 6,
+              timezone: d.timezone || 'UTC',
+              recipient_email: d.recipient_email || '',
+              frequency: 'daily' as const,
+              health_score: d.health_score ?? 100,
+              last_run_at: d.last_run_at || undefined,
+            }));
+
+          const domainMap = new Map<string, ProjectData>();
+          prev.forEach((p) => domainMap.set(p.domain.toLowerCase(), p));
+          cleanCloud.forEach((cp) => {
+            const key = cp.domain.toLowerCase();
+            if (domainMap.has(key)) {
+              domainMap.set(key, { ...domainMap.get(key)!, ...cp });
+            } else {
+              domainMap.set(key, cp);
+            }
+          });
+          const mergedList = Array.from(domainMap.values());
+          return mergedList.length > 0 ? mergedList : prev;
+        });
+      }
+    } catch (err) {
+      console.warn('Cloud projects sync error:', err);
+    }
+  };
 
   // Fetch projects from Supabase database
   const loadUserProjects = async (userId: string) => {
@@ -639,16 +682,6 @@ export const AppContent: React.FC = () => {
           {renderContent()}
         </main>
       </div>
-
-      {/* Floating Action Dock (Quick actions like in reference UI) */}
-      <FloatingDock
-        onAddProject={() => setIsAddProjectOpen(true)}
-        onQuickAudit={() => setCurrentTab('quick_audit')}
-        onNavigateToIssues={() => setCurrentTab('issues')}
-        onNavigateToReport={() => setCurrentTab('site_report')}
-        onNavigateToSettings={() => setCurrentTab('settings')}
-        onRunNow={handleRunInstantAnalysis}
-      />
 
       {/* Auth Modal (Login / Sign Up) */}
       <AuthModal
