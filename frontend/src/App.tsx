@@ -8,6 +8,7 @@ import { AddProjectModal } from './components/AddProjectModal';
 import { EditProjectModal, ProjectData } from './components/EditProjectModal';
 import { AuthModal } from './components/AuthModal';
 import { AccessGateModal } from './components/AccessGateModal';
+import { ProactiveAiAssistant } from './components/ProactiveAiAssistant';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
 import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
 import { syncLeadsFromCloud } from './lib/leadTracker';
@@ -765,6 +766,14 @@ export const AppContent: React.FC = () => {
       <HelpDrawer
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
+      />
+
+      {/* Proactive AI SEO Assistant */}
+      <ProactiveAiAssistant
+        activeProject={activeProject}
+        issues={getProjectIssues()}
+        onOpenAdvisor={() => setCurrentTab('ai_advisor')}
+        onOpenIssues={() => setCurrentTab('issues')}
       />
     </div>
   );

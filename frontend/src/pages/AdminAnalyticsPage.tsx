@@ -204,7 +204,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               setBroadcastStatus('idle');
               setBroadcastMsg('');
             }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-sm active:scale-95 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gold text-white text-xs font-bold hover:bg-gold-hover transition-all shadow-sm active:scale-95 cursor-pointer"
           >
             <Send className="w-4 h-4" />
             <span>{isAr ? 'إرسال إشعار لكافة المسجلين' : 'Broadcast Update Email'}</span>
@@ -214,7 +214,7 @@ export const AdminAnalyticsPage: React.FC = () => {
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 text-blue-600 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-gold ${loading ? 'animate-spin' : ''}`} />
             <span>{isAr ? 'تحديث البيانات' : 'Refresh'}</span>
           </button>
         </div>
@@ -227,7 +227,7 @@ export const AdminAnalyticsPage: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {isAr ? 'إجمالي المشتركين والعملاء' : 'Total Registered Leads'}
             </span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-xl bg-gold-tint text-gold border border-gold-border">
               <Users className="w-5 h-5" />
             </div>
           </div>
@@ -273,9 +273,9 @@ export const AdminAnalyticsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
+              <Users className="w-5 h-5 text-gold" />
               <span>{isAr ? 'سجل المشتركين وتفاصيل العملاء المسجلين' : 'Subscribers & Registered Leads Details'}</span>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-gold-tint text-gold border border-gold-border">
                 {leads.length} {isAr ? 'مشترك' : 'leads'}
               </span>
             </h3>
@@ -291,7 +291,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               onClick={exportLeadsToCSV}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs"
             >
-              <Download className="w-3.5 h-3.5 text-blue-600" />
+              <Download className="w-3.5 h-3.5 text-gold" />
               <span>{isAr ? 'تصدير كملف CSV' : 'Export CSV'}</span>
             </button>
           </div>
@@ -305,7 +305,7 @@ export const AdminAnalyticsPage: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={isAr ? 'بحث بالاسم، البريد أو الموقع...' : 'Search by name, email, or domain...'}
-            className="w-full ps-10 pe-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 transition-all"
+            className="w-full ps-10 pe-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-gold transition-all"
           />
         </div>
 
@@ -334,7 +334,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   <tr key={lead.id || idx} className="hover:bg-slate-50/70 transition-colors">
                     {/* Subscriber Name */}
                     <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 text-xs font-black shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-gold-tint border border-gold-border flex items-center justify-center text-gold text-xs font-black shrink-0">
                         {lead.name.charAt(0).toUpperCase()}
                       </div>
                       <span className="font-extrabold">{lead.name}</span>
@@ -345,7 +345,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <a
                           href={`mailto:${lead.email}`}
-                          className="hover:text-blue-600 hover:underline"
+                          className="hover:text-gold hover:underline"
                         >
                           {lead.email}
                         </a>
@@ -366,7 +366,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                     {/* Domain */}
                     <td className="py-3.5 px-4">
                       {lead.domain ? (
-                        <div className="flex items-center gap-1 font-mono text-blue-700 font-bold">
+                        <div className="flex items-center gap-1 font-mono text-gold font-bold">
                           <Globe className="w-3.5 h-3.5 text-slate-400" />
                           <span>{lead.domain}</span>
                         </div>
@@ -399,7 +399,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-center">
                       <button
                         onClick={() => setSelectedLead(lead)}
-                        className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors"
+                        className="px-3 py-1 rounded-lg bg-gold-tint hover:bg-gold-tint/80 text-gold border border-gold-border font-bold text-xs transition-colors"
                       >
                         {isAr ? 'عرض التفاصيل' : 'View Details'}
                       </button>
@@ -418,7 +418,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl p-6 space-y-5 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-black text-sm">
+                <div className="w-10 h-10 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-black text-sm">
                   {selectedLead.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
@@ -438,7 +438,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-500">{isAr ? 'الموقع المسجل:' : 'Registered Site:'}</span>
-                  <span className="font-mono font-bold text-blue-700">{selectedLead.domain || '-'}</span>
+                  <span className="font-mono font-bold text-gold">{selectedLead.domain || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-500">{isAr ? 'تاريخ ووقت التسجيل:' : 'Registered At:'}</span>
@@ -454,7 +454,7 @@ export const AdminAnalyticsPage: React.FC = () => {
             <div className="flex items-center gap-3 pt-2">
               <a
                 href={`mailto:${selectedLead.email}`}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs text-center transition-colors flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-gold hover:bg-gold-hover text-white font-bold text-xs text-center transition-colors flex items-center justify-center gap-1.5"
               >
                 <Mail className="w-3.5 h-3.5" />
                 <span>{isAr ? 'إرسال بريد للمشترك' : 'Send Email'}</span>
@@ -476,7 +476,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-200">
+                <div className="w-10 h-10 rounded-2xl bg-gold-tint flex items-center justify-center text-gold border border-gold-border">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
@@ -531,7 +531,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                     type="text"
                     value={broadcastSubject}
                     onChange={(e) => setBroadcastSubject(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-gold font-medium"
                   />
                 </div>
 
@@ -543,7 +543,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                     rows={4}
                     value={customIntro}
                     onChange={(e) => setCustomIntro(e.target.value)}
-                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-blue-500 leading-relaxed font-medium"
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-gold leading-relaxed font-medium"
                   />
                 </div>
 
@@ -557,7 +557,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   <button
                     onClick={handleSendBroadcast}
                     disabled={broadcastStatus === 'sending'}
-                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
+                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gold hover:bg-gold-hover text-white text-xs font-bold shadow-sm disabled:opacity-50 cursor-pointer"
                   >
                     {broadcastStatus === 'sending' ? (
                       <>

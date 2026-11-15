@@ -56,9 +56,9 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenAiAdvisor && (
           <button
             onClick={onOpenAiAdvisor}
-            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-blue-200 bg-blue-50/70 text-body-sm font-bold text-blue-700 hover:bg-blue-100 hover:shadow-xs transition-all duration-200 active:scale-95 cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-gold-border bg-gold-tint/80 text-body-sm font-bold text-gold hover:bg-gold-tint hover:shadow-xs transition-all duration-200 active:scale-95 cursor-pointer"
           >
-            <Cpu className="w-3.5 h-3.5 text-blue-600" />
+            <Cpu className="w-3.5 h-3.5 text-gold" />
             <span>{locale === 'en' ? 'AI SEO Advisor' : 'مستشار السيو الذكي'}</span>
           </button>
         )}

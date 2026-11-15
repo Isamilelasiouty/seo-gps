@@ -131,13 +131,13 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600">
+              <div className="p-2 rounded-xl bg-gold-tint border border-gold-border text-gold">
                 <Cpu className="w-5 h-5" />
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>{isAr ? 'مستشار السيو الذكي' : 'Technical SEO AI Advisor'}</span>
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gold-tint text-gold border border-gold-border">
                     Google Search Central Architecture
                   </span>
                 </h1>
@@ -151,8 +151,8 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gold-tint/80 border border-gold-border text-xs font-bold text-gold">
+              <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
               <span>{isAr ? 'الذاكرة الذكية نشطة' : 'AI Site Memory Active'}</span>
             </div>
 
@@ -177,7 +177,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                 key={idx}
                 onClick={() => handleSendMessage(q)}
                 disabled={isThinking}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200/90 hover:border-blue-200 transition-all text-slate-700 active:scale-95 disabled:opacity-50 text-start"
+                className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-50 hover:bg-gold-tint hover:text-gold border border-slate-200/90 hover:border-gold-border transition-all text-slate-700 active:scale-95 disabled:opacity-50 text-start"
               >
                 {q}
               </button>
@@ -198,7 +198,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                 className={`flex gap-3.5 ${isAi ? 'items-start' : 'items-start justify-end'}`}
               >
                 {isAi && (
-                  <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
+                  <div className="w-9 h-9 rounded-2xl bg-gold text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
                     SEO
                   </div>
                 )}
@@ -207,7 +207,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                   className={`max-w-2xl rounded-2xl p-4.5 text-sm leading-relaxed ${
                     isAi
                       ? 'bg-slate-50 border border-slate-200/80 text-slate-800'
-                      : 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gold text-white shadow-sm'
                   }`}
                 >
                   {/* Content with whitespace formatting */}
@@ -220,7 +220,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                         <span className="uppercase">{msg.codeSnippet.language} Fix</span>
                         <button
                           onClick={() => copyToClipboard(msg.codeSnippet!.code, `code-${msg.id}`)}
-                          className="flex items-center gap-1 hover:text-blue-600"
+                          className="flex items-center gap-1 hover:text-gold"
                         >
                           {copiedId === `code-${msg.id}` ? (
                             <Check className="w-3 h-3 text-emerald-600" />
@@ -243,7 +243,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                         href={msg.docCitationUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold hover:underline"
+                        className="inline-flex items-center gap-1.5 text-gold hover:text-gold-hover font-bold hover:underline"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
                         <span>{msg.docCitationTitle || (isAr ? 'مرجع Google Search Central الرسمي' : 'Official Google Documentation')}</span>
@@ -266,7 +266,7 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                 </div>
 
                 {!isAi && (
-                  <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
+                  <div className="w-9 h-9 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm font-bold text-xs">
                     {activeProject?.name?.charAt(0) || 'U'}
                   </div>
                 )}
@@ -276,11 +276,11 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
 
           {isThinking && (
             <div className="flex gap-3.5 items-start">
-              <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 animate-pulse text-xs font-bold">
+              <div className="w-9 h-9 rounded-2xl bg-gold text-white flex items-center justify-center shrink-0 animate-pulse text-xs font-bold">
                 SEO
               </div>
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 text-sm flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin" />
                 <span>{isAr ? 'جارٍ تحليل إرشادات جوجل وخطة الإصلاح الفنية...' : 'Analyzing Google Search Central guidelines...'}</span>
               </div>
             </div>
@@ -307,12 +307,12 @@ export const AiAdvisorPage: React.FC<AiAdvisorPageProps> = ({ activeProject, iss
                   ? `اسأل خبير الـ SEO عن أي مشكلة في (${projectDomain}) أو استشارة تقنية...`
                   : `Ask the SEO Architect about any issue on (${projectDomain})...`
               }
-              className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+              className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
             />
             <button
               type="submit"
               disabled={isThinking || !inputText.trim()}
-              className="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
+              className="px-5 py-3 rounded-xl bg-gold hover:bg-gold-hover active:scale-95 text-white font-bold text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-40 cursor-pointer"
             >
               <span>{isAr ? 'إرسال' : 'Send'}</span>
               <Send className="w-4 h-4 rtl:rotate-180" />

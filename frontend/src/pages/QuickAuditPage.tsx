@@ -566,18 +566,18 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
             <button
               onClick={onNavigateToPages}
-              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-blue-300 hover:shadow-md transition-all duration-200 flex items-center justify-between text-right rtl:text-right ltr:text-left group active:scale-[0.99]"
+              className="p-4 bg-white rounded-xl border border-surface-hairline hover:border-gold-border hover:shadow-md transition-all duration-200 flex items-center justify-between text-right rtl:text-right ltr:text-left group active:scale-[0.99]"
             >
               <div>
-                <div className="text-xs font-bold uppercase text-blue-600">
+                <div className="text-xs font-bold uppercase text-gold">
                   {isAr ? 'سجل الروابط' : 'URL Inventory'}
                 </div>
                 <div className="text-body-md font-black text-ink mt-0.5">
                   {t('quick_audit.view_pages').replace('{count}', String(pages.length))}
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/60 flex items-center justify-center shrink-0">
-                <FileText className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
+              <div className="w-8 h-8 rounded-lg bg-gold-tint border border-gold-border flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-gold group-hover:scale-110 transition-transform" />
               </div>
             </button>
           </div>

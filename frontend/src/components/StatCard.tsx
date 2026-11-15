@@ -59,20 +59,20 @@ export const StatCard: React.FC<StatCardProps> = ({
         };
       case 'notice':
         return {
-          border: isSelected ? 'border-blue-400 ring-4 ring-blue-500/10 shadow-md' : 'border-slate-100 hover:border-blue-200',
-          dotTop: 'bg-blue-400/50',
+          border: isSelected ? 'border-gold ring-4 ring-gold/15 shadow-md' : 'border-slate-100 hover:border-gold-border',
+          dotTop: 'bg-gold/40',
           dotBottom: 'bg-emerald-300/40',
-          iconBg: 'bg-blue-50 text-blue-600 border border-blue-100/80',
-          valueColor: 'text-blue-600',
+          iconBg: 'bg-gold-tint text-gold border border-gold-border',
+          valueColor: 'text-gold',
           badgeText: 'فرص تحسين',
           subtext: 'ملاحظات إرشادية لتطوير الأداء والعناوين',
-          defaultIcon: <Info className="w-5 h-5 text-blue-500" />,
+          defaultIcon: <Info className="w-5 h-5 text-gold" />,
         };
       case 'healthy':
         return {
           border: isSelected ? 'border-emerald-400 ring-4 ring-emerald-500/10 shadow-md' : 'border-slate-100 hover:border-emerald-200',
           dotTop: 'bg-emerald-400/50',
-          dotBottom: 'bg-blue-300/40',
+          dotBottom: 'bg-gold/30',
           iconBg: 'bg-emerald-50 text-emerald-600 border border-emerald-100/80',
           valueColor: 'text-emerald-600',
           badgeText: 'مكتملة الفحص',

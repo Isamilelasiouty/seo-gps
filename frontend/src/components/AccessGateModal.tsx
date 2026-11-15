@@ -105,17 +105,17 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
     >
       <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden transform animate-in zoom-in-95 duration-200">
         {/* Top Accent Gradient Bar */}
-        <div className="h-2 w-full bg-gradient-to-r from-blue-600 via-amber-500 to-emerald-500" />
+        <div className="h-2 w-full bg-gradient-to-r from-gold via-amber-500 to-gold-hover" />
 
         <div className="p-8 sm:p-10 space-y-6">
           {/* Header & Logo */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-amber-50 border border-amber-200/80 shadow-xs mb-1">
-              <ShieldCheck className="w-9 h-9 text-amber-600" />
+            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gold-tint border border-gold-border shadow-xs mb-1">
+              <ShieldCheck className="w-9 h-9 text-gold" />
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700">
-              <Lock className="w-3 h-3 text-amber-600" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gold-tint/80 border border-gold-border text-[11px] font-bold text-gold">
+              <Lock className="w-3 h-3 text-gold" />
               <span>{isAr ? 'تسجيل إلزامي قبل بدء الاستخدام' : 'Mandatory Registration Gate'}</span>
             </div>
 
@@ -152,7 +152,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={isAr ? 'مثال: إسماعيل الأسيوطي' : 'e.g. John Doe'}
-                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
                 />
               </div>
             </div>
@@ -170,7 +170,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={isAr ? 'name@company.com' : 'name@company.com'}
-                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all font-mono"
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
@@ -192,7 +192,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                  className="w-full ps-10 pe-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all font-mono"
                 />
               </div>
             </div>
@@ -204,7 +204,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
                 id="consentCheck"
                 checked={agreeTerms}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-gold focus:ring-gold"
               />
               <label htmlFor="consentCheck" className="text-xs text-slate-500 leading-snug cursor-pointer">
                 {isAr
@@ -217,7 +217,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({ isOpen, onSucc
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+              className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-gold hover:bg-gold-hover active:scale-[0.99] text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

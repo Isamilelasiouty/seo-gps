@@ -385,7 +385,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                             ? 'bg-rose-100 text-rose-800'
                             : issue.severity === 'warning'
                             ? 'bg-amber-100 text-amber-800'
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-gold-tint text-gold border border-gold-border'
                         }`}
                       >
                         {isResolved
@@ -513,7 +513,7 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
                             ? 'bg-rose-100 text-rose-800'
                             : issue.severity === 'warning'
                             ? 'bg-amber-100 text-amber-800'
-                            : 'bg-blue-100 text-blue-800'
+                            : 'bg-gold-tint text-gold border border-gold-border'
                         }`}
                       >
                         {issue.severity === 'critical'

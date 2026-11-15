@@ -192,4 +192,127 @@ export const GOOGLE_SEO_KNOWLEDGE_TOPICS: GoogleSeoDocTopic[] = [
       'Convert non-content heading tags in footers or sidebars to semantic div/span tags.',
     ],
   },
+  {
+    id: 'schema_structured_data',
+    category: 'technical',
+    title_ar: 'البيانات المنظمة (Schema.org / JSON-LD) والنتائج المنسقة (Rich Snippets)',
+    title_en: 'Structured Data (Schema.org / JSON-LD) & Rich Results',
+    googleOfficialDocUrl: 'https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data',
+    officialRule_ar:
+      'توصي جوجل باستخدام تنسيق JSON-LD لتطبيق البيانات المنظمة. تساعد السكيما محركات البحث على فهم نوع المحتوى بدقة (مقال، منتج، منظمة، مسار تنقل Breadcrumb، أسئلة شائعة FAQ) وتتيح ظهور النجوم والأسعار والأسئلة مباشرة في نتائج البحث مما يرفع نسبة النقر (CTR) بنسبة تفوق 30%.',
+    officialRule_en:
+      'Google recommends JSON-LD for structured data markup. Schema enables Googlebot to parse entity relationships (Article, Product, Organization, Breadcrumb, FAQ) and renders rich snippets in SERPs, significantly elevating organic click-through rates.',
+    actionPlan_ar: [
+      'إضافة سكيما Organization و WebSite إلى الصفحة الرئيسية.',
+      'إضافة سكيما BreadcrumbList في كافة الصفحات الفرعية لتسهيل مسار التصفح.',
+      'تطبيق سكيما Article أو NewsArticle على المقالات، وسكيما Product على صفحات المنتجات.',
+      'فحص الأكواد عبر أداة اختبار النتائج المنسقة الرسمية (Google Rich Results Test).',
+    ],
+    actionPlan_en: [
+      'Embed Organization and WebSite schema on the homepage.',
+      'Implement BreadcrumbList schema across all nested pages.',
+      'Deploy Article schema on editorial posts and Product schema on commerce items.',
+      'Validate markup using the official Google Rich Results Test tool.',
+    ],
+    codeSnippet: {
+      language: 'json',
+      code: `{\n  "@context": "https://schema.org",\n  "@type": "Article",\n  "headline": "عنوان المقال المحسن",\n  "author": {\n    "@type": "Person",\n    "name": "إسماعيل الأسيوطي"\n  }\n}`,
+    },
+  },
+  {
+    id: 'internal_linking_strategy',
+    category: 'indexing',
+    title_ar: 'استراتيجية الروابط الداخلية وتوزيع سلطة الصفحات (PageRank Distribution)',
+    title_en: 'Internal Linking Architecture & PageRank Flow',
+    googleOfficialDocUrl: 'https://developers.google.com/search/docs/crawling-indexing/links-crawlable',
+    officialRule_ar:
+      'تؤكد جوجل أن الروابط الداخلية تمثل البنية التحتية لفهم أهمية الصفحات (Topical Authority). كل رابط داخلي ينقل جزءاً من سلطة الصفحة ويساعد في اكتشاف المحتوى الجديد. احرص على استخدام نص رابط وصفي واضح (Descriptive Anchor Text) وتجنب العبارات العامة مثل "اضغط هنا". وتأكد من عدم وجود صفحات يتيمة (Orphan Pages) لا يصل إليها أي رابط داخلي.',
+    officialRule_en:
+      'Google affirms that internal links map architectural hierarchy and distribute PageRank across URLs. Use keyword-rich, descriptive anchor text reflecting target context instead of generic phrases like "click here". Eliminate orphan pages by ensuring every indexable URL receives at least one contextual internal link.',
+    actionPlan_ar: [
+      'ربط المقالات الجديدة بالمقالات القديمة ذات الصلة والعكس.',
+      'استخدام نصوص روابط (Anchor text) طبيعية توضح محتوى الصفحة المستهدفة بدقة.',
+      'فحص الصفحات اليتيمة وربطها من الصفحات الرئيسية والتصنيفات.',
+      'التأكد من أن الروابط مكتوبة بصيغة <a> صريحة مع خاصية href وليس بأحداث javascript:void(0).',
+    ],
+    actionPlan_en: [
+      'Cross-link topically relevant articles naturally within body copy.',
+      'Use contextual, descriptive anchor texts clarifying destination topics.',
+      'Rescue orphan pages by establishing inbound pathways from category silos.',
+      'Format links with standard crawlable <a href="..."> HTML tags rather than JS click handlers.',
+    ],
+  },
+  {
+    id: 'indexing_and_crawl_budget',
+    category: 'indexing',
+    title_ar: 'إدارة الفهرسة وميزانية الزحف (Crawl Budget & Indexing Control)',
+    title_en: 'Indexing Controls & Crawl Budget Optimization',
+    googleOfficialDocUrl: 'https://developers.google.com/search/docs/crawling-indexing/large-site-managing-crawl-budget',
+    officialRule_ar:
+      'توضح جوجل أن إدارة ميزانية الزحف وفهرسة الصفحات تتطلب منع محركات البحث من إهدار الوقت في فحص صفحات الفلاتر أو نتائج البحث الداخلي أو المعلمات (URL Parameters). استخدم وسم <meta name="robots" content="noindex, follow"> للصفحات الضعيفة أو الإدارية، واعتمد خريطة الموقع XML لتسريع اكتشاف الصفحات الاستراتيجية فقط.',
+    officialRule_en:
+      'Google emphasizes that controlling crawl budget and indexation involves blocking crawlers from low-value facets, query strings, and admin endpoints. Use <meta name="robots" content="noindex, follow"> on non-canonical utilities, and maintain clean XML sitemaps to guide Googlebot directly to high-value URLs.',
+    actionPlan_ar: [
+      'إضافة noindex للصفحات المؤقتة والداخلية وصفحات الشكر وسلات الشراء.',
+      'تنظيف خريطة الموقع XML من أي صفحات تعيد كود 404 أو تحويلات 301.',
+      'مراقبة تقرير تغطية الفهرسة (Page Indexing Report) في Google Search Console.',
+      'تجنب حجب روابط الـ CSS و JavaScript في ملف robots.txt لتتمكن جوجل من رندرة الصفحات بشكل صحيح.',
+    ],
+    actionPlan_en: [
+      'Set noindex tags on thank-you, internal search, and transactional cart pages.',
+      'Keep XML sitemaps free of 404 errors, redirects, or canonical mismatches.',
+      'Monitor Google Search Console Page Indexing reports for discovered vs indexed status.',
+      'Never disallow core CSS or JavaScript assets in robots.txt to ensure full browser rendering.',
+    ],
+    codeSnippet: {
+      language: 'html',
+      code: '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">',
+    },
+  },
+  {
+    id: 'keyword_cannibalization',
+    category: 'content',
+    title_ar: 'حل تنافس وازدواجية الكلمات المفتاحية (Keyword Cannibalization)',
+    title_en: 'Resolving Keyword Cannibalization & Intent Overlap',
+    googleOfficialDocUrl: 'https://developers.google.com/search/docs/fundamentals/creating-helpful-content',
+    officialRule_ar:
+      'يحدث تنافس الكلمات المفتاحية عندما تستهدف صفحتان أو أكثر في نفس الموقع نفس النية البحثية (Search Intent)، مما يؤدي إلى تشتيت إشارات الترتيب وتناوب الصفحات في نتائج البحث دون استقرار. تنصح جوجل بدمج الصفحات المتشابهة في مقال أو صفحة رئيسية شاملة (Content Consolidation) واستخدام تحويل 301 دائم من الصفحات المدمجة إلى الصفحة الأقوى.',
+    officialRule_en:
+      'Keyword cannibalization occurs when multiple pages target the same search intent, diluting PageRank signals and causing ranking instability. Google recommends consolidating duplicate intent pages into a single comprehensive authority piece and redirecting redundant URLs via 301.',
+    actionPlan_ar: [
+      'حصر الصفحات التي تنافس بعضها على نفس الكلمة المفتاحية في تقرير الأداء.',
+      'دمج أفضل الفقرات من الصفحات الفرعية داخل الصفحة الأكثر سلطة وأقدمية.',
+      'عمل تحويل 301 دائم من الروابط القديمة إلى الرابط الموحد.',
+      'تحديث كافة الروابط الداخلية لتشير مباشرة إلى الرابط الموحد الجديد.',
+    ],
+    actionPlan_en: [
+      'Identify overlapping pages targeting identical queries in GSC performance reports.',
+      'Consolidate top content elements into the highest-authority parent page.',
+      'Establish permanent 301 redirects from secondary URLs to the consolidated guide.',
+      'Update internal links throughout the site to point to the new single authority source.',
+    ],
+  },
+  {
+    id: 'backlinks_and_link_spam',
+    category: 'technical',
+    title_ar: 'جودة الروابط الخلفية وسياسات مكافحة السبام (Google Link Spam Policies)',
+    title_en: 'Backlink Quality & Google Link Spam Guidelines',
+    googleOfficialDocUrl: 'https://developers.google.com/search/docs/essentials/spam-policies#link-spam',
+    officialRule_ar:
+      'تحذر جوجل بشدة من شراء الروابط الخلفية أو برامج تبادل الروابط التلقائية. أي رابط مدفوع أو إعلاني يجب أن يحمل وسم rel="sponsored" أو rel="nofollow". تركز جوجل الحديثة على خوارزمية SpamBrain لتحييد الروابط المشبوهة تلقائياً، والسبيل الوحيد للنجاح طويل الأمد هو بناء روابط طبيعية ناتجة عن محتوى عالي القيمة يقتبسه الآخرون تلقائياً.',
+    officialRule_en:
+      'Google strictly prohibits purchasing links or automated link exchanges. Sponsored or paid links must include rel="sponsored" or rel="nofollow". Modern Google algorithms like SpamBrain neutralize suspicious links automatically; legitimate long-term authority comes from organic citations earned by authoritative content.',
+    actionPlan_ar: [
+      'وضع rel="sponsored" أو rel="nofollow" على أي إعلانات أو روابط ترويجية خارجية.',
+      'الابتعاد التام عن شبكات بيع الباك لينكس التلقائية لتفادي العقوبات الخوارزمية.',
+      'بناء أصول محتوى تستحق المشاركة (أدوات مجانية، إحصائيات، دراسات حالة موثوقة).',
+      'فحص ملف الروابط الخارجية بانتظام واستبعاد الروابط المشبوهة إذا لزم الأمر.',
+    ],
+    actionPlan_en: [
+      'Tag all sponsored content and affiliate partnerships with rel="sponsored" or rel="nofollow".',
+      'Avoid link farms and automated private blog networks (PBNs) to safeguard domain health.',
+      'Create linkable assets (original studies, calculators, high-utility frameworks).',
+      'Regularly audit referral anchor texts to verify clean, natural profile growth.',
+    ],
+  },
 ];
