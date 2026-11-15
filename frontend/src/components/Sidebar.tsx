@@ -83,18 +83,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside
       className={`${
         isCollapsed ? 'w-20' : 'w-64'
-      } bg-surface border-r rtl:border-r-0 rtl:border-l border-surface-hairline flex flex-col h-[calc(100vh-4rem)] sticky top-16 select-none shrink-0 transition-all duration-300 ease-in-out`}
+      } bg-white/90 backdrop-blur-md border-r rtl:border-r-0 rtl:border-l border-slate-200/70 flex flex-col h-[calc(100vh-4rem)] sticky top-16 select-none shrink-0 transition-all duration-300 ease-in-out shadow-xs`}
     >
       {/* 1. Header with Collapse / Expand Toggle Button */}
-      <div className={`p-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-surface-hairline`}>
+      <div className={`p-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-slate-100`}>
         {!isCollapsed && (
-          <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             {isAr ? 'القائمة الرئيسية' : 'Main Menu'}
           </span>
         )}
         <button
           onClick={toggleCollapse}
-          className="p-1.5 rounded-lg hover:bg-gold-tint text-ink-muted hover:text-gold transition-colors"
+          className="p-1.5 rounded-xl hover:bg-gold-tint/60 text-slate-400 hover:text-gold transition-colors"
           title={
             isCollapsed
               ? (isAr ? 'توسيع القائمة الجانبية' : 'Expand Sidebar')
@@ -111,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 2. Project Switcher */}
-      <div className="p-3 border-b border-surface-hairline relative">
+      <div className="p-3 border-b border-slate-100 relative">
         {isCollapsed ? (
           /* Collapsed Project Button */
           <div className="flex justify-center">
@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setIsSwitcherOpen(!isSwitcherOpen);
                 }
               }}
-              className="w-10 h-10 rounded-xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-base hover:shadow-sm transition-all"
+              className="w-10 h-10 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-base hover:shadow-sm transition-all"
               title={activeProject?.name || (isAr ? 'اختر موقعاً' : 'Select Project')}
             >
               {activeProject?.name?.charAt(0) || '+'}
@@ -131,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ) : (
           /* Expanded Project Card */
-          <div className="editorial-card p-3 transition-all flex items-center justify-between">
+          <div className="editorial-card p-3 transition-all flex items-center justify-between rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-gold/50">
             <div
               onClick={() => {
                 if (projects.length === 0) {
@@ -142,14 +142,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
               className="flex items-center gap-3 overflow-hidden flex-1 cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-lg bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-sm shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold font-bold text-sm shrink-0 shadow-xs">
                 {activeProject?.name?.charAt(0) || '+'}
               </div>
               <div className="overflow-hidden text-left rtl:text-right">
-                <div className="font-bold text-body-md text-ink truncate leading-tight">
+                <div className="font-bold text-body-md text-slate-800 truncate leading-tight">
                   {activeProject?.name || t('dashboard.no_projects_selected')}
                 </div>
-                <div className="text-xs text-ink-muted truncate">
+                <div className="text-xs text-slate-400 truncate mt-0.5">
                   {activeProject?.domain || t('header.add_project')}
                 </div>
               </div>
@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     e.stopPropagation();
                     onEditProject(activeProject);
                   }}
-                  className="p-1 rounded hover:bg-gold-tint/60 text-ink-muted hover:text-gold"
+                  className="p-1 rounded-lg hover:bg-gold-tint/60 text-slate-400 hover:text-gold transition-colors"
                   title={t('project_actions.edit')}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
@@ -170,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
               <ChevronDown
                 onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-                className="w-4 h-4 text-ink-muted cursor-pointer hover:text-ink"
+                className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-800 transition-colors"
               />
             </div>
           </div>
@@ -251,25 +251,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onSelectTab(item.id)}
               title={item.label}
-              className={`w-full flex items-center justify-center p-3 rounded-xl transition-all duration-200 ${
+              className={`w-full flex items-center justify-center p-3 rounded-2xl transition-all duration-200 ${
                 isActive
-                  ? 'bg-gold-tint text-gold font-extrabold border border-gold-border/80 shadow-sm'
-                  : 'text-ink-muted hover:text-ink hover:bg-gold-tint/30'
+                  ? 'bg-gradient-to-tr from-amber-50 to-gold-tint/50 text-gold font-extrabold border border-gold-border/80 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
               }`}
             >
-              <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-gold' : 'text-ink-muted'}`} />
+              <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-gold' : 'text-slate-400'}`} />
             </button>
           ) : (
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-body-sm transition-all duration-200 text-left rtl:text-right ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-body-sm transition-all duration-200 text-left rtl:text-right ${
                 isActive
-                  ? 'bg-gold-tint text-gold font-extrabold border border-gold-border/80 shadow-sm'
-                  : 'text-ink-muted hover:text-ink hover:bg-gold-tint/30 font-medium'
+                  ? 'bg-gradient-to-r from-amber-50 to-gold-tint/50 text-gold font-extrabold border border-gold-border/80 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 font-medium'
               }`}
             >
-              <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-gold' : 'text-ink-muted'}`} />
+              <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-gold' : 'text-slate-400'}`} />
               <span className="truncate">{item.label}</span>
             </button>
           );
@@ -277,13 +277,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* 4. Bottom Footer */}
-      <div className={`border-t border-surface-hairline text-center text-xs text-ink-muted ${isCollapsed ? 'p-2' : 'p-4'}`}>
+      <div className={`border-t border-slate-100 text-center text-xs text-slate-400 ${isCollapsed ? 'p-2' : 'p-4'}`}>
         {isCollapsed ? (
-          <div className="text-[10px] font-bold text-ink-muted">GPS</div>
+          <div className="text-[10px] font-bold text-slate-400">GPS</div>
         ) : (
           <>
-            <div>{isAr ? 'SEO GPS • النسخة الاحترافية' : 'SEO GPS • Professional Edition'}</div>
-            <div className="mt-0.5 text-ink-subtle">{t('by_owner')}</div>
+            <div className="font-semibold text-slate-500">{isAr ? 'SEO GPS • النسخة الاحترافية' : 'SEO GPS • Professional Edition'}</div>
+            <div className="mt-0.5 text-slate-400 text-[11px]">{t('by_owner')}</div>
           </>
         )}
       </div>

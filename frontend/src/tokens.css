@@ -4,20 +4,20 @@
 
 :root {
   --bg-main: #FFFFFF;
-  --bg-surface: #FAFAF7;
-  --bg-gold-tint: #FBF5E4;
+  --bg-surface: #F8FAFC;
+  --bg-gold-tint: #FEF9EE;
   --primary-gold: #B8892B;
   --primary-gold-hover: #9A7220;
-  --border-gold: #E9D9A8;
-  --border-hairline: #ECE8DC;
-  --text-ink: #16140F;
-  --text-muted: #6B665A;
+  --border-gold: #F3E4BE;
+  --border-hairline: #E2E8F0;
+  --text-ink: #0F172A;
+  --text-muted: #64748B;
 
   /* Severity Tokens */
-  --color-critical: #B42318;
-  --color-warning: #B54708;
-  --color-notice: #175CD3;
-  --color-healthy: #067647;
+  --color-critical: #EF4444;
+  --color-warning: #F59E0B;
+  --color-notice: #3B82F6;
+  --color-healthy: #10B981;
 }
 
 /* Eye-comfort typography and tabular numbers */
@@ -37,17 +37,27 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
-/* Subtle card styling */
+/* Modern Eye-Comfort Card Styling */
 .editorial-card {
   background-color: #FFFFFF;
-  border: 1px solid #ECE8DC;
-  border-radius: 14px;
-  box-shadow: 0 1px 3px 0 rgba(22, 20, 15, 0.03), 0 1px 2px -1px rgba(22, 20, 15, 0.02);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid #EDF2F7;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 4px 16px -2px rgba(15, 23, 42, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .editorial-card:hover {
-  box-shadow: 0 4px 12px 0 rgba(22, 20, 15, 0.05);
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.06);
+}
+
+/* Floating Action Dock (like in reference UI) */
+.floating-dock {
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 tbody tr {
@@ -69,21 +79,21 @@ tbody tr {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6B665A;
+  color: #64748B;
 }
 
-/* Clean scrollbar */
+/* Clean, Restful Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #FAFAF7;
+  background: #F8FAFC;
 }
 ::-webkit-scrollbar-thumb {
-  background: #ECE8DC;
-  border-radius: 3px;
+  background: #CBD5E1;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #E9D9A8;
+  background: #94A3B8;
 }

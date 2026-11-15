@@ -7,6 +7,7 @@ import { HelpDrawer } from './components/HelpDrawer';
 import { AddProjectModal } from './components/AddProjectModal';
 import { EditProjectModal, ProjectData } from './components/EditProjectModal';
 import { AuthModal } from './components/AuthModal';
+import { FloatingDock } from './components/FloatingDock';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
 import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
 
@@ -638,6 +639,16 @@ export const AppContent: React.FC = () => {
           {renderContent()}
         </main>
       </div>
+
+      {/* Floating Action Dock (Quick actions like in reference UI) */}
+      <FloatingDock
+        onAddProject={() => setIsAddProjectOpen(true)}
+        onQuickAudit={() => setCurrentTab('quick_audit')}
+        onNavigateToIssues={() => setCurrentTab('issues')}
+        onNavigateToReport={() => setCurrentTab('site_report')}
+        onNavigateToSettings={() => setCurrentTab('settings')}
+        onRunNow={handleRunInstantAnalysis}
+      />
 
       {/* Auth Modal (Login / Sign Up) */}
       <AuthModal

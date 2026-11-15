@@ -197,8 +197,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       {/* Case 2: Project Not Yet Audited - Clean Call to Action */}
       {!isAudited ? (
-        <div className="editorial-card p-10 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-4">
+        <div className="editorial-card p-12 flex flex-col items-center justify-center text-center rounded-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-gold-tint border border-gold-border flex items-center justify-center text-gold mb-4 shadow-sm">
             <Sparkles className="w-8 h-8" />
           </div>
           <h3 className="text-title-md font-black text-ink mb-2">
@@ -218,123 +218,166 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       ) : (
         /* Case 3: Project Audited - Real Metrics */
-        <>
-          {/* Indicators Grid */}
+        <div className="space-y-6">
+          {/* Centered Modern Section Header (Inspired by reference UI) */}
+          <div className="text-center pt-1 pb-1 space-y-1.5">
+            <div className="inline-flex items-center gap-2.5 text-title-md md:text-title-lg font-black text-slate-800 tracking-tight">
+              <span className="w-1.5 h-1.5 rounded-full bg-gold/70" />
+              <span>{isAr ? 'لوحة الإحصائيات والمؤشرات' : 'Analytics & Indicators Dashboard'}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-gold/70" />
+            </div>
+            <div className="w-12 h-1 bg-gold/70 rounded-full mx-auto" />
+            <p className="text-body-sm text-slate-500 font-medium">
+              {isAr
+                ? 'نظرة شاملة ولحظية على مؤشرات أداء الموقع وصحة السيو التقنية'
+                : 'Comprehensive real-time overview of website performance and technical SEO health'}
+            </p>
+          </div>
+
+          {/* Full-width 4 Stat Cards Row (Restful, Floating, Soft rounded) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <StatCard
+              label={isAr ? 'المشاكل الحرجة' : 'Critical Issues'}
+              value={critVal}
+              change={0}
+              severity="critical"
+              statusBadge={isAr ? 'تتطلب معالجة' : 'Needs Action'}
+              sublabel={isAr ? 'أخطاء برمجية وصفحات 404' : 'Technical & 404 broken pages'}
+              isSelected={selectedMetric === 'critical'}
+              onClick={() => {
+                setSelectedMetric('critical');
+                onNavigateToIssues();
+              }}
+            />
+            <StatCard
+              label={isAr ? 'التحذيرات التقنية' : 'Technical Warnings'}
+              value={warnVal}
+              change={0}
+              severity="warning"
+              statusBadge={isAr ? 'تحذيرات هامة' : 'Warnings'}
+              sublabel={isAr ? 'تنبيهات تؤثر على تجربة الزوار' : 'Issues affecting user experience'}
+              isSelected={selectedMetric === 'warning'}
+              onClick={() => {
+                setSelectedMetric('warning');
+                onNavigateToIssues();
+              }}
+            />
+            <StatCard
+              label={isAr ? 'الملاحظات الإرشادية' : 'Optimization Notices'}
+              value={noticVal}
+              change={0}
+              severity="notice"
+              statusBadge={isAr ? 'فرص تحسين' : 'Optimizations'}
+              sublabel={isAr ? 'تحسينات العناوين وهيكل الصفحات' : 'Title tags & structured data gaps'}
+              isSelected={selectedMetric === 'notice'}
+              onClick={() => {
+                setSelectedMetric('notice');
+                onNavigateToIssues();
+              }}
+            />
+            <StatCard
+              label={isAr ? 'الصفحات المفحوصة' : 'Crawled Pages'}
+              value={pagesVal}
+              change={0}
+              severity="healthy"
+              statusBadge={isAr ? 'مكتملة الفحص' : 'Audited'}
+              sublabel={isAr ? 'جاهزة ومستكشفة بالكامل' : 'Indexed and live crawl completed'}
+              isSelected={selectedMetric === 'pages'}
+              onClick={() => setSelectedMetric('pages')}
+            />
+          </div>
+
+          {/* Resolved Issues Banner */}
+          {resolvedVal > 0 && (
+            <div className="p-4 bg-gradient-to-r from-emerald-50 via-teal-50/40 to-emerald-50 border border-emerald-200/90 text-emerald-800 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs">
+              <span className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span className="text-body-sm font-bold">
+                  {isAr
+                    ? `تم التحقق من حل ${resolvedVal} مشكلة بنجاح عبر الفحص المباشر!`
+                    : `${resolvedVal} issues verified and resolved via live checks!`}
+                </span>
+              </span>
+              <button
+                onClick={onNavigateToIssues}
+                className="text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5 shrink-0 font-extrabold bg-white px-3.5 py-1.5 rounded-xl border border-emerald-200 shadow-xs hover:shadow-sm transition-all"
+              >
+                <span>{isAr ? 'عرض قائمة المهام' : 'View Action List'}</span>
+                <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+              </button>
+            </div>
+          )}
+
+          {/* Indicators & Trend Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Main Indicator: Semi-circle Gauge */}
-            <div className="lg:col-span-4 editorial-card p-6 flex flex-col justify-between">
+            <div className="lg:col-span-5 editorial-card p-6 flex flex-col justify-between rounded-2xl bg-white border border-slate-100 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="eyebrow">{t('dashboard.main_indicator')}</span>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#ECFDF3] text-[#067647]">
-                  <ShieldCheck className="w-3.5 h-3.5" /> {t('dashboard.status_stable')}
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> {t('dashboard.status_stable')}
                 </span>
               </div>
 
-              <GaugeChart score={activeProject.health_score || 92} />
+              <div className="py-2">
+                <GaugeChart score={activeProject.health_score || 92} />
+              </div>
 
-              <div className="text-center pt-2 border-t border-surface-hairline text-xs text-ink-muted">
+              <div className="text-center pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
                 {critVal} {t('dashboard.critical')} &bull; {warnVal} {t('dashboard.warning')} &bull; {noticVal} {t('dashboard.notice')}
               </div>
             </div>
 
-            {/* Metric Cards */}
-            <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard
-                label={t('dashboard.critical')}
-                value={critVal}
-                change={0}
-                severity="critical"
-                isSelected={selectedMetric === 'critical'}
-                onClick={() => {
-                  setSelectedMetric('critical');
-                  onNavigateToIssues();
-                }}
-              />
-              <StatCard
-                label={t('dashboard.warning')}
-                value={warnVal}
-                change={0}
-                severity="warning"
-                isSelected={selectedMetric === 'warning'}
-                onClick={() => {
-                  setSelectedMetric('warning');
-                  onNavigateToIssues();
-                }}
-              />
-              <StatCard
-                label={t('dashboard.notice')}
-                value={noticVal}
-                change={0}
-                severity="notice"
-                isSelected={selectedMetric === 'notice'}
-                onClick={() => {
-                  setSelectedMetric('notice');
-                  onNavigateToIssues();
-                }}
-              />
-              <StatCard
-                label={t('dashboard.crawled_pages')}
-                value={pagesVal}
-                change={0}
-                severity="healthy"
-                isSelected={selectedMetric === 'pages'}
-                onClick={() => setSelectedMetric('pages')}
-              />
-
-              {/* Resolved Issues Banner */}
-              {resolvedVal > 0 && (
-                <div className="col-span-2 sm:col-span-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>
-                      {isAr
-                        ? `تم التحقق من حل ${resolvedVal} مشكلة بنجاح عبر الفحص المباشر!`
-                        : `${resolvedVal} issues verified and resolved via live checks!`}
-                    </span>
-                  </span>
-                  <button
-                    onClick={onNavigateToIssues}
-                    className="text-emerald-700 hover:underline flex items-center gap-1 shrink-0 font-bold"
-                  >
-                    <span>{isAr ? 'عرض قائمة المهام' : 'View Action List'}</span>
-                    <ArrowRight className="w-3 h-3 rtl:rotate-180" />
-                  </button>
-                </div>
-              )}
-
-              {/* Time Series Chart Box */}
-              <div className="col-span-2 sm:col-span-4 editorial-card p-6 bg-surface">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="eyebrow">{t('dashboard.trend_title')} ({timeRange})</span>
-                  <span className="text-xs text-ink-muted">{t('dashboard.trend_subtitle')}</span>
+            {/* Time Series Chart Box */}
+            <div className="lg:col-span-7 editorial-card p-6 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <span className="eyebrow">{t('dashboard.trend_title')}</span>
+                  <div className="text-body-sm font-bold text-slate-800 mt-0.5">
+                    {t('dashboard.trend_subtitle')} ({timeRange})
+                  </div>
                 </div>
 
-                <div className="h-32 w-full flex items-end">
-                  <svg viewBox="0 0 500 100" className="w-full h-full overflow-visible">
-                    <defs>
-                      <linearGradient id="chartGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#B8892B" stopOpacity="0.25" />
-                        <stop offset="100%" stopColor="#B8892B" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 0,40 Q 120,50 250,30 T 500,20 L 500,100 L 0,100 Z"
-                      fill="url(#chartGoldGrad)"
-                    />
-                    <path
-                      d="M 0,40 Q 120,50 250,30 T 500,20"
-                      fill="none"
-                      stroke="#B8892B"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-                    <circle cx="500" cy="20" r="4.5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
-                  </svg>
+                <div className="bg-slate-50 border border-slate-200/80 p-1 rounded-xl flex items-center text-xs font-semibold">
+                  {(['7d', '28d', '90d'] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setTimeRange(r)}
+                      className={`px-3 py-1 rounded-lg transition-all ${
+                        timeRange === r ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {t(`dashboard.range_${r}`)}
+                    </button>
+                  ))}
                 </div>
+              </div>
+
+              <div className="h-40 w-full flex items-end pt-2">
+                <svg viewBox="0 0 500 100" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="chartGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#B8892B" stopOpacity="0.22" />
+                      <stop offset="100%" stopColor="#B8892B" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M 0,40 Q 120,50 250,30 T 500,20 L 500,100 L 0,100 Z"
+                    fill="url(#chartGoldGrad)"
+                  />
+                  <path
+                    d="M 0,40 Q 120,50 250,30 T 500,20"
+                    fill="none"
+                    stroke="#B8892B"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="500" cy="20" r="4.5" fill="#B8892B" stroke="#FFFFFF" strokeWidth="2" />
+                </svg>
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -10,18 +10,19 @@ export default {
         gold: {
           DEFAULT: '#B8892B',
           hover: '#9A7220',
-          tint: '#FBF5E4',
-          border: '#E9D9A8',
+          tint: '#FEF9EE',
+          border: '#F3E4BE',
         },
         surface: {
-          DEFAULT: '#FAFAF7',
+          DEFAULT: '#F8FAFC',
           card: '#FFFFFF',
-          hairline: '#ECE8DC',
+          hairline: '#E2E8F0',
+          soft: '#F1F5F9',
         },
         ink: {
-          DEFAULT: '#16140F',
-          muted: '#6B665A',
-          subtle: '#8F8B80',
+          DEFAULT: '#0F172A',
+          muted: '#64748B',
+          subtle: '#94A3B8',
         },
         severity: {
           critical: '#B42318',

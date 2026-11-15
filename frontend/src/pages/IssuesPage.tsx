@@ -258,42 +258,42 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
       </div>
 
       {/* 2. Resolution Progress Overview Card */}
-      <div className="editorial-card p-5 bg-gradient-to-r from-surface to-gold-tint/20 border-surface-hairline">
+      <div className="editorial-card p-6 bg-white border border-slate-100/90 rounded-2xl shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gold uppercase tracking-wider">
                 {isAr ? 'معدل إنجاز إصلاح المشاكل' : 'Resolution Progress'}
               </span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
                 {resolvedCount} {isAr ? 'تم التحقق وحلها' : 'Verified Fixed'}
               </span>
             </div>
-            <div className="text-title-lg font-black text-ink">
+            <div className="text-title-lg font-black text-slate-800">
               {progressPercent}% {isAr ? 'من إجمالي المشاكل المكتشفة تم إصلاحها' : 'of detected issues resolved'}
             </div>
           </div>
 
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <div className="text-title-md font-black text-severity-critical">{criticalCount}</div>
-              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'حرجة متبقية' : 'Critical Open'}</div>
+              <div className="text-title-md font-black text-rose-600">{criticalCount}</div>
+              <div className="text-[11px] font-bold text-slate-400">{isAr ? 'حرجة متبقية' : 'Critical Open'}</div>
             </div>
             <div className="text-center">
-              <div className="text-title-md font-black text-severity-warning">{warningCount}</div>
-              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'تحذيرات' : 'Warnings'}</div>
+              <div className="text-title-md font-black text-amber-600">{warningCount}</div>
+              <div className="text-[11px] font-bold text-slate-400">{isAr ? 'تحذيرات' : 'Warnings'}</div>
             </div>
             <div className="text-center">
               <div className="text-title-md font-black text-emerald-600">{resolvedCount}</div>
-              <div className="text-[11px] font-bold text-ink-muted">{isAr ? 'مكتملة' : 'Completed'}</div>
+              <div className="text-[11px] font-bold text-slate-400">{isAr ? 'مكتملة' : 'Completed'}</div>
             </div>
           </div>
         </div>
 
         {/* Visual Progress Bar */}
-        <div className="w-full bg-surface-hairline h-2.5 rounded-full mt-4 overflow-hidden">
+        <div className="w-full bg-slate-100 h-2.5 rounded-full mt-4 overflow-hidden">
           <div
-            className="bg-emerald-600 h-full transition-all duration-500 rounded-full"
+            className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-500 rounded-full"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -363,14 +363,14 @@ export const IssuesPage: React.FC<IssuesPageProps> = ({
             return (
               <div
                 key={issue.id}
-                className={`editorial-card p-5 transition-all border ${
+                className={`editorial-card p-5 transition-all duration-300 rounded-2xl bg-white border shadow-xs hover:shadow-md ${
                   isResolved
-                    ? 'border-emerald-200 bg-emerald-50/30'
+                    ? 'border-emerald-200/90 bg-emerald-50/20'
                     : issue.severity === 'critical'
                     ? 'border-rose-200 hover:border-rose-300'
                     : issue.severity === 'warning'
                     ? 'border-amber-200 hover:border-amber-300'
-                    : 'border-surface-hairline'
+                    : 'border-slate-100 hover:border-slate-200'
                 }`}
               >
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">

@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   const displayName = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || t('header.my_account');
 
   return (
-    <header className="h-16 border-b border-surface-hairline/80 bg-white/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_3px_0_rgba(22,20,15,0.02)]">
+    <header className="h-16 border-b border-slate-200/80 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 shadow-[0_1px_4px_0_rgba(15,23,42,0.03)]">
       {/* Brand & Creator Left Section */}
       <div className="flex items-center gap-3">
         <img
