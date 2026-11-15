@@ -83,16 +83,13 @@ export const AdminAnalyticsPage: React.FC = () => {
         .from('audit_runs')
         .select('*', { count: 'exact', head: true });
 
-      const totalProj = Math.max(
-        cloudResult.projects.length,
-        projectCount || projectsData?.length || 1
-      );
+      const totalProj = projectCount || projectsData?.length || allMerged.filter((l) => l.domain).length;
 
       setStats({
         totalUsers: allMerged.length,
         totalProjects: totalProj,
         totalAudits: Math.max(1, auditCount || 0),
-        recentProjects: cloudResult.projects.length > 0 ? cloudResult.projects : (projectsData || []),
+        recentProjects: projectsData || [],
       });
     } catch (err) {
       console.warn('Admin stats fetch warning:', err);

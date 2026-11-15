@@ -174,7 +174,6 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           leads: parsedLeads,
-          projects: projData || [],
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -361,24 +360,26 @@ serve(async (req) => {
             deltas_count: 0,
           });
 
-          // If domain provided, ensure it appears in projects list
-          if (domain) {
+          // If domain provided and matches a registered auth user, link project directly to that user
+          if (domain && userEmail) {
             const cleanDom = domain.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
             const { data: usersData } = await supabaseClient.auth.admin.listUsers();
-            const owner =
-              usersData?.users?.find((u) => u.email?.toLowerCase() === ownerEmail.toLowerCase()) ||
-              usersData?.users?.[0];
+            const matchingUser = usersData?.users?.find(
+              (u) => u.email?.toLowerCase() === userEmail.toLowerCase().trim()
+            );
 
-            if (owner) {
+            // Only link project to user's private account if they have an active user account
+            if (matchingUser) {
               const { data: existing } = await supabaseClient
                 .from("projects")
                 .select("id")
                 .eq("domain", cleanDom)
+                .eq("user_id", matchingUser.id)
                 .limit(1);
 
               if (!existing || existing.length === 0) {
                 await supabaseClient.from("projects").insert({
-                  user_id: owner.id,
+                  user_id: matchingUser.id,
                   name: userName ? `${userName} - ${cleanDom}` : cleanDom,
                   domain: cleanDom,
                   root_url: `https://${cleanDom}`,

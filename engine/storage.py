@@ -274,9 +274,24 @@ class LocalStorage:
             ))
         return p_id
 
-    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+    def user_owns_project(self, project_id: str, user_id: str) -> bool:
+        """Check if user owns project in SQLite storage (multi-tenant parity)."""
         with self.get_connection() as conn:
-            row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+            row = conn.execute(
+                "SELECT 1 FROM projects WHERE id = ? AND user_id = ?",
+                (project_id, user_id)
+            ).fetchone()
+            return bool(row)
+
+    def get_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            if user_id:
+                row = conn.execute(
+                    "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+                    (project_id, user_id)
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             if not row:
                 return None
             p = dict(row)
@@ -297,8 +312,14 @@ class LocalStorage:
                 rows = conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
             return [dict(r) for r in rows]
 
-    def delete_project(self, project_id: str):
+    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
         with self.get_connection() as conn:
+            if user_id:
+                # Verify ownership before deletion (prevent ID tampering)
+                check = conn.execute("SELECT user_id FROM projects WHERE id = ?", (project_id,)).fetchone()
+                if not check or check["user_id"] != user_id:
+                    return False
+
             conn.execute("DELETE FROM issue_events WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM issues WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM scan_urls WHERE project_id = ?", (project_id,))
@@ -308,6 +329,7 @@ class LocalStorage:
             conn.execute("DELETE FROM email_logs WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM project_settings WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            return True
 
     # -------------------------------------------------------------------------
     # Scan & URL Management
@@ -363,8 +385,10 @@ class LocalStorage:
             res["counters"] = json.loads(res.get("counters", "{}"))
             return res
 
-    def list_scans(self, project_id: str) -> List[Dict[str, Any]]:
+    def list_scans(self, project_id: str, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
+            if user_id and not self.user_owns_project(project_id, user_id):
+                return []
             rows = conn.execute("SELECT * FROM scans WHERE project_id = ? ORDER BY started_at DESC", (project_id,)).fetchall()
             result = []
             for r in rows:
@@ -470,8 +494,10 @@ class LocalStorage:
                     now,
                 ))
 
-    def get_issues(self, project_id: str, status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_issues(self, project_id: str, status_filter: Optional[str] = None, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
+            if user_id and not self.user_owns_project(project_id, user_id):
+                return []
             if status_filter and status_filter != "all":
                 rows = conn.execute("SELECT * FROM issues WHERE project_id = ? AND status = ? ORDER BY severity ASC", (project_id, status_filter)).fetchall()
             else:
@@ -544,8 +570,16 @@ class LocalStorage:
                 now,
             ))
 
-    def get_report_snapshot(self, scan_id: str) -> Optional[Dict[str, Any]]:
+    def get_report_snapshot(self, scan_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
+            if user_id:
+                proj_row = conn.execute(
+                    "SELECT p.user_id FROM report_snapshots rs JOIN projects p ON rs.project_id = p.id WHERE rs.scan_id = ?",
+                    (scan_id,)
+                ).fetchone()
+                if not proj_row or proj_row["user_id"] != user_id:
+                    return None
+
             row = conn.execute("SELECT * FROM report_snapshots WHERE scan_id = ?", (scan_id,)).fetchone()
             if not row:
                 return None

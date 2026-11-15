@@ -201,17 +201,16 @@ export async function saveLead(params: {
 
 export interface CloudSyncResult {
   leads: LeadSubscriber[];
-  projects: any[];
 }
 
 /**
- * Synchronize leads and registered projects directly from the Supabase Edge Function
- * (which uses service_role key to bypass RLS and return all registrations).
+ * Synchronize leads directly from the Supabase Edge Function
+ * (used exclusively for the admin analytics dashboard).
  */
 export async function syncLeadsFromCloud(): Promise<CloudSyncResult> {
   const localLeads = getAllLeads();
   if (!supabase) {
-    return { leads: localLeads, projects: [] };
+    return { leads: localLeads };
   }
 
   try {
@@ -221,11 +220,10 @@ export async function syncLeadsFromCloud(): Promise<CloudSyncResult> {
 
     if (error || !data?.success) {
       console.warn('Failed to fetch leads from edge function:', error || data?.error);
-      return { leads: localLeads, projects: [] };
+      return { leads: localLeads };
     }
 
     const cloudLeads: LeadSubscriber[] = Array.isArray(data.leads) ? data.leads : [];
-    const cloudProjects: any[] = Array.isArray(data.projects) ? data.projects : [];
 
     // Deduplicate and merge cloud leads with local leads
     const map = new Map<string, LeadSubscriber>();
@@ -265,9 +263,9 @@ export async function syncLeadsFromCloud(): Promise<CloudSyncResult> {
       console.warn('Could not cache merged leads:', e);
     }
 
-    return { leads: merged, projects: cloudProjects };
+    return { leads: merged };
   } catch (err) {
     console.warn('Network error while syncing leads from cloud:', err);
-    return { leads: localLeads, projects: [] };
+    return { leads: localLeads };
   }
 }

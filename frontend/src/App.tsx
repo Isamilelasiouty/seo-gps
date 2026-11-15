@@ -24,18 +24,33 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AiAdvisorPage } from './pages/AiAdvisorPage';
 
-const LOCAL_STORAGE_KEY = 'seo_gps_persisted_projects';
-const LAST_ACTIVE_PROJECT_KEY = 'seo_gps_last_active_project_id';
 const USER_SESSION_KEY = 'seo_gps_persisted_user_session';
+const getUserProjectsKey = (userId?: string) => (userId ? `seo_gps_projects_${userId}` : 'seo_gps_projects_anon');
+const getUserLastActiveKey = (userId?: string) => (userId ? `seo_gps_last_active_${userId}` : 'seo_gps_last_active_anon');
 
 export const AppContent: React.FC = () => {
   const { dir, t } = useI18n();
   const [currentTab, setCurrentTab] = useState('overview');
 
-  // Persistent Projects State (Filtered from any legacy mock/demo sites)
+  // User Auth State with Instant Session Persistence on Reload
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    try {
+      const savedUser = localStorage.getItem(USER_SESSION_KEY);
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {}
+    return null;
+  });
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // User-Isolated Persistent Projects State
   const [projects, setProjects] = useState<ProjectData[]>(() => {
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const savedUser = localStorage.getItem(USER_SESSION_KEY);
+      const userId = savedUser ? JSON.parse(savedUser)?.id : undefined;
+      if (!userId) return []; // Unauthenticated visitors have isolated empty state
+      const userKey = getUserProjectsKey(userId);
+      const saved = localStorage.getItem(userKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -53,11 +68,16 @@ export const AppContent: React.FC = () => {
 
   const [activeProject, setActiveProject] = useState<ProjectData | null>(() => {
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
+      const savedUser = localStorage.getItem(USER_SESSION_KEY);
+      const userId = savedUser ? JSON.parse(savedUser)?.id : undefined;
+      if (!userId) return null;
+      const userKey = getUserProjectsKey(userId);
+      const lastKey = getUserLastActiveKey(userId);
+      const saved = localStorage.getItem(userKey);
+      const lastId = localStorage.getItem(lastKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           const clean = parsed.filter(
             (p: any) => p && p.id !== 'p-default' && p.domain !== 'example.com' && p.name !== 'الموقع الافتراضي'
           );
@@ -73,17 +93,6 @@ export const AppContent: React.FC = () => {
     } catch (e) {}
     return null;
   });
-
-  // User Auth State with Instant Session Persistence on Reload
-  const [currentUser, setCurrentUser] = useState<any>(() => {
-    try {
-      const savedUser = localStorage.getItem(USER_SESSION_KEY);
-      if (savedUser) return JSON.parse(savedUser);
-    } catch (e) {}
-    return null;
-  });
-  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Mandatory Pre-Audit Registration Gate
   const [isAccessGateOpen, setIsAccessGateOpen] = useState<boolean>(() => {
@@ -133,34 +142,38 @@ export const AppContent: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Sync projects to LocalStorage whenever modified
+  // Sync projects to User-Scoped LocalStorage whenever modified
   useEffect(() => {
+    if (!currentUser?.id) return;
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
+      const userKey = getUserProjectsKey(currentUser.id);
+      localStorage.setItem(userKey, JSON.stringify(projects));
     } catch (e) {
       console.error('Failed to cache projects:', e);
     }
-  }, [projects]);
+  }, [projects, currentUser]);
 
-  // Sync active project id to LocalStorage
+  // Sync active project id to User-Scoped LocalStorage
   useEffect(() => {
-    if (activeProject?.id) {
+    if (activeProject?.id && currentUser?.id) {
       try {
-        localStorage.setItem(LAST_ACTIVE_PROJECT_KEY, activeProject.id);
+        const lastKey = getUserLastActiveKey(currentUser.id);
+        localStorage.setItem(lastKey, activeProject.id);
       } catch (e) {}
     }
-  }, [activeProject]);
+  }, [activeProject, currentUser]);
 
   // Keep activeProject synchronized with projects array
   useEffect(() => {
     if (projects.length === 0) {
       setActiveProject(null);
     } else if (!activeProject || !projects.some((p) => p.id === activeProject.id)) {
-      const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
+      const lastKey = getUserLastActiveKey(currentUser?.id);
+      const lastId = localStorage.getItem(lastKey);
       const matched = lastId ? projects.find((p) => p.id === lastId) : null;
       setActiveProject(matched || projects[0]);
     }
-  }, [projects]);
+  }, [projects, currentUser]);
 
   // Check Supabase session on load and fetch user projects
   useEffect(() => {
@@ -187,10 +200,12 @@ export const AppContent: React.FC = () => {
                 await loadUserProjects(parsed.id);
               }
             } catch (e) {}
+          } else {
+            // Unauthenticated visitor -> isolated empty projects
+            setProjects([]);
+            setActiveProject(null);
           }
         }
-        // Always sync any visitor registered projects and leads from cloud
-        await syncCloudProjects();
       } catch (err) {
         console.warn('Supabase session load error:', err);
       } finally {
@@ -213,8 +228,11 @@ export const AppContent: React.FC = () => {
         await loadUserProjects(user.id);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
+        setProjects([]);
+        setActiveProject(null);
         try {
           localStorage.removeItem(USER_SESSION_KEY);
+          localStorage.removeItem('seo_gps_supabase_auth_token');
         } catch (e) {}
       }
       setIsAuthLoading(false);
@@ -226,48 +244,7 @@ export const AppContent: React.FC = () => {
     };
   }, []);
 
-  // Synchronize projects from Cloud Edge Function (includes all visitor registered sites)
-  const syncCloudProjects = async () => {
-    try {
-      const cloud = await syncLeadsFromCloud();
-      if (cloud.projects && cloud.projects.length > 0) {
-        setProjects((prev) => {
-          const cleanCloud: ProjectData[] = cloud.projects
-            .filter((p: any) => p.domain && p.domain !== 'example.com')
-            .map((d: any) => ({
-              id: d.id,
-              name: d.name || d.domain,
-              domain: d.domain,
-              root_url: d.root_url || `https://${d.domain}`,
-              sitemap_url: d.sitemap_url || `https://${d.domain}/sitemap.xml`,
-              daily_crawl_hour: d.daily_crawl_hour || 6,
-              timezone: d.timezone || 'UTC',
-              recipient_email: d.recipient_email || '',
-              frequency: 'daily' as const,
-              health_score: d.health_score ?? 100,
-              last_run_at: d.last_run_at || undefined,
-            }));
-
-          const domainMap = new Map<string, ProjectData>();
-          prev.forEach((p) => domainMap.set(p.domain.toLowerCase(), p));
-          cleanCloud.forEach((cp) => {
-            const key = cp.domain.toLowerCase();
-            if (domainMap.has(key)) {
-              domainMap.set(key, { ...domainMap.get(key)!, ...cp });
-            } else {
-              domainMap.set(key, cp);
-            }
-          });
-          const mergedList = Array.from(domainMap.values());
-          return mergedList.length > 0 ? mergedList : prev;
-        });
-      }
-    } catch (err) {
-      console.warn('Cloud projects sync error:', err);
-    }
-  };
-
-  // Fetch projects from Supabase database
+  // Fetch projects from Supabase database (Strictly isolated by user_id and Postgres RLS)
   const loadUserProjects = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -281,7 +258,7 @@ export const AppContent: React.FC = () => {
         return;
       }
 
-      if (data && data.length > 0) {
+      if (data) {
         const clean = data.filter((d: any) => d.domain !== 'example.com' && d.id !== 'p-default');
         const formatted: ProjectData[] = clean.map((d: any) => {
           const settings = Array.isArray(d.project_settings) ? d.project_settings[0] : d.project_settings;
@@ -302,9 +279,15 @@ export const AppContent: React.FC = () => {
         });
         setProjects(formatted);
 
-        const lastId = localStorage.getItem(LAST_ACTIVE_PROJECT_KEY);
+        const lastKey = getUserLastActiveKey(userId);
+        const lastId = localStorage.getItem(lastKey);
         const matched = lastId ? formatted.find((p) => p.id === lastId) : null;
-        setActiveProject(matched || formatted[0]);
+        setActiveProject(matched || (formatted.length > 0 ? formatted[0] : null));
+
+        // Persist strictly to user-scoped LocalStorage
+        try {
+          localStorage.setItem(getUserProjectsKey(userId), JSON.stringify(formatted));
+        } catch (e) {}
       }
     } catch (e) {
       console.error('Error fetching Supabase projects:', e);
@@ -371,7 +354,8 @@ export const AppContent: React.FC = () => {
             daily_crawl_hour: updatedProject.daily_crawl_hour,
             timezone: updatedProject.timezone,
           })
-          .eq('id', updatedProject.id);
+          .eq('id', updatedProject.id)
+          .eq('user_id', currentUser.id);
 
         if (updatedProject.recipient_email) {
           try {
@@ -399,7 +383,11 @@ export const AppContent: React.FC = () => {
   const handleProjectDeleted = async (projectId: string) => {
     if (currentUser && !projectId.startsWith('proj-') && projectId !== 'p-default') {
       try {
-        await supabase.from('projects').delete().eq('id', projectId);
+        await supabase
+          .from('projects')
+          .delete()
+          .eq('id', projectId)
+          .eq('user_id', currentUser.id);
       } catch (err) {
         console.error('Failed to delete project from Supabase:', err);
       }
@@ -500,6 +488,8 @@ export const AppContent: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    setProjects([]);
+    setActiveProject(null);
     try {
       localStorage.removeItem(USER_SESSION_KEY);
       localStorage.removeItem('seo_gps_supabase_auth_token');
@@ -751,6 +741,8 @@ export const AppContent: React.FC = () => {
         isOpen={isAddProjectOpen}
         onClose={() => setIsAddProjectOpen(false)}
         onSuccess={handleProjectAdded}
+        currentUser={currentUser}
+        onRequireAuth={() => setIsAuthOpen(true)}
       />
 
       {/* Edit Project Modal */}

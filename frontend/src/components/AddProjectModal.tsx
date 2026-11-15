@@ -10,12 +10,16 @@ interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (project: ProjectData) => void;
+  currentUser?: any;
+  onRequireAuth?: () => void;
 }
 
 export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  currentUser,
+  onRequireAuth,
 }) => {
   const { t, locale, dir } = useI18n();
   const isAr = locale !== 'en';
@@ -32,14 +36,14 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Requirement: Ensure modal opens clean with zero leftover state
+  // Requirement: Ensure modal opens clean with zero leftover state and autofills from user session
   useEffect(() => {
     if (isOpen) {
-      setName('');
+      setName(currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || '');
       setRootUrl('');
       setSitemapUrl('');
       setExtraUrls('');
-      setEmail('');
+      setEmail(currentUser?.email || '');
       setFrequency('daily');
       setCrawlHour('06');
       setCrawlDay('monday');
@@ -47,13 +51,20 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({
       setIsSubmitting(false);
       setFormError('');
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+
+    // If user is not authenticated, prompt to sign in so site is attached to private account
+    if (!currentUser && onRequireAuth) {
+      onClose();
+      onRequireAuth();
+      return;
+    }
 
     // 1. Mandatory Email Validation
     const cleanEmail = email.trim();
