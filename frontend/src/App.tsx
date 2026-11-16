@@ -434,7 +434,7 @@ export const AppContent: React.FC = () => {
       }
 
       if (result && result.summary) {
-        const score = result.summary.health_score || 81;
+        const score = result.summary.health_score ?? 81;
         const nowIso = new Date().toISOString();
 
         const updatedProj: ProjectData = {
@@ -453,10 +453,10 @@ export const AppContent: React.FC = () => {
             activeProject.id,
             activeProject.domain,
             score,
-            result.summary.total_crawled || 180,
-            result.summary.critical_count || 0,
-            result.summary.warning_count || 14,
-            result.summary.notice_count || 6,
+            result.summary.total_crawled ?? (result.pages?.length || 0),
+            result.summary.critical_count ?? 0,
+            result.summary.warning_count ?? 0,
+            result.summary.notice_count ?? 0,
             result.summary
           );
         } catch (snapErr) {
@@ -518,6 +518,9 @@ export const AppContent: React.FC = () => {
           }
         } catch (e) {}
       }
+      if (!activeProject.last_run_at) {
+        return [];
+      }
       const domainIssues = getDomainAuditResult(activeProject.domain, activeProject.root_url || `https://${activeProject.domain}/`, isAr).issues;
       try {
         localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(domainIssues));
@@ -551,10 +554,13 @@ export const AppContent: React.FC = () => {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 1) {
+          if (Array.isArray(parsed) && parsed.length > 0) {
             return parsed;
           }
         } catch (e) {}
+      }
+      if (!activeProject.last_run_at) {
+        return [];
       }
       const domainPages = getDomainAuditResult(activeProject.domain, activeProject.root_url || `https://${activeProject.domain}/`, isAr).pages;
       try {
@@ -566,7 +572,7 @@ export const AppContent: React.FC = () => {
     if (quickSaved) {
       try {
         const parsed = JSON.parse(quickSaved);
-        if (Array.isArray(parsed) && parsed.length > 1) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       } catch (e) {}
@@ -580,14 +586,24 @@ export const AppContent: React.FC = () => {
   };
 
   const getIssuesSummary = () => {
+    if (!activeProject?.last_run_at) {
+      return {
+        critical: 0,
+        warning: 0,
+        notice: 0,
+        resolved: 0,
+        pages: 0,
+      };
+    }
     const issues = getProjectIssues();
     const resolvedList = activeProject?.id ? getResolvedIssues(activeProject.id) : [];
+    const pages = getProjectPages();
     return {
       critical: issues.filter((i: any) => i.severity === 'critical' && i.status !== 'resolved').length,
       warning: issues.filter((i: any) => i.severity === 'warning' && i.status !== 'resolved').length,
       notice: issues.filter((i: any) => i.severity === 'notice' && i.status !== 'resolved').length,
       resolved: resolvedList.length,
-      pages: activeProject?.domain === 'techhouseksa.com' ? 180 : 30,
+      pages: pages.length,
     };
   };
 

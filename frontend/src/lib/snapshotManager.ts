@@ -59,31 +59,6 @@ export function getProjectSnapshots(projectId: string, domain?: string): AuditSn
     console.warn('Failed to parse local snapshots:', e);
   }
 
-  // If no snapshots exist yet for this project, seed an initial baseline snapshot
-  if (list.length === 0) {
-    const { date, time } = formatSnapshotTime(new Date());
-    const initialSnapshot: AuditSnapshot = {
-      id: `snap-${Date.now()}`,
-      project_id: projectId,
-      domain: domain || 'techhouseksa.com',
-      date,
-      time,
-      timestamp: Date.now(),
-      scanType: 'baseline',
-      healthScore: 92,
-      pagesCrawled: 180,
-      criticalCount: 0,
-      warningCount: 14,
-      noticeCount: 6,
-      resolvedCount: 0,
-      newCount: 0,
-      persistingCount: 20,
-      status: 'completed',
-    };
-    list = [initialSnapshot];
-    saveSnapshotsLocally(projectId, list);
-  }
-
   return list;
 }
 
