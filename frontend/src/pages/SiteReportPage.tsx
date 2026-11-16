@@ -124,7 +124,7 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
           body: JSON.stringify({
             rootUrl,
             sitemapUrl: activeProject?.sitemap_url || undefined,
-            maxPages: 60,
+            maxPages: 5000,
             targetYear: 2027,
             locale: isAr ? 'ar' : 'en',
           }),
@@ -136,11 +136,47 @@ export const SiteReportPage: React.FC<SiteReportPageProps> = ({
         console.warn('Backend crawler endpoint unreachable, running in-browser crawler...');
       }
 
+      // Try Supabase Server-side Edge Crawler (Zero CORS)
+      if ((!data || !data.success) && supabase) {
+        try {
+          const { data: edgeData, error } = await supabase.functions.invoke('quick-audit', {
+            body: {
+              rootUrl,
+              sitemapUrl: activeProject?.sitemap_url || undefined,
+              maxPages: 5000,
+              targetYear: 2027,
+              locale: isAr ? 'ar' : 'en',
+            },
+          });
+          if (!error && edgeData?.success) {
+            data = edgeData;
+          }
+        } catch (_) {}
+
+        if (!data || !data.success) {
+          try {
+            const { data: edgeData, error } = await supabase.functions.invoke('send-audit-report', {
+              body: {
+                type: 'crawl_site',
+                rootUrl,
+                sitemapUrl: activeProject?.sitemap_url || undefined,
+                maxPages: 5000,
+                targetYear: 2027,
+                locale: isAr ? 'ar' : 'en',
+              },
+            });
+            if (!error && edgeData?.success) {
+              data = edgeData;
+            }
+          } catch (_) {}
+        }
+      }
+
       if (!data || !data.success) {
         data = await executeSiteCrawl({
           rootUrl,
           sitemapUrl: activeProject?.sitemap_url || undefined,
-          maxPages: 60,
+          maxPages: 5000,
           targetYear: 2027,
           locale: isAr ? 'ar' : 'en',
         });

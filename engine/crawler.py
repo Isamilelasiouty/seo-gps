@@ -78,7 +78,7 @@ class PoliteCrawler:
         self,
         domain: str,
         user_agent: str = "SEOGPS-Bot/1.0 (+https://isamilelasiouty.github.io/seo-gps; by Ismail El Asiouty)",
-        max_pages: int = 2000,
+        max_pages: int = 50000,
         concurrency: int = 5,
         delay_ms: int = 250,
         timeout: int = 20,
@@ -157,17 +157,15 @@ class PoliteCrawler:
             tag = root.tag.split("}")[-1] if "}" in root.tag else root.tag
 
             if tag == "sitemapindex":
-                for elem in root:
-                    loc = elem.find("{*}loc")
-                    if loc is not None and loc.text:
-                        sub_urls = await self.fetch_sitemap(loc.text.strip(), client)
+                for loc in root.iter():
+                    if loc.tag.split("}")[-1] == "loc" and loc.text:
+                        sub_sm = loc.text.strip()
+                        sub_urls = await self.fetch_sitemap(sub_sm, client)
                         urls.extend(sub_urls)
             elif tag == "urlset":
-                for elem in root:
-                    loc = elem.find("{*}loc")
-                    if loc is not None and loc.text:
-                        u = loc.text.strip()
-                        urls.append(u)
+                for loc in root.iter():
+                    if loc.tag.split("}")[-1] == "loc" and loc.text:
+                        urls.append(loc.text.strip())
         except Exception as e:
             # Non-fatal warning
             pass
@@ -434,17 +432,50 @@ class PoliteCrawler:
                 }
 
             # 2. Register Sitemap URLs
+            candidate_sitemaps = set()
             if sitemap_url:
-                s_urls = await self.fetch_sitemap(sitemap_url, client_pri)
+                candidate_sitemaps.add(sitemap_url)
+
+            # Auto-discover from robots.txt and candidate sitemaps
+            if clean_root:
+                try:
+                    robots_resp = await client_pri.get(f"{clean_root}/robots.txt", timeout=6)
+                    if robots_resp.status_code == 200:
+                        for line in robots_resp.text.splitlines():
+                            if line.lower().startswith("sitemap:"):
+                                sm_c = line.split(":", 1)[1].strip()
+                                if sm_c:
+                                    candidate_sitemaps.add(sm_c)
+                except Exception:
+                    pass
+
+                common_sitemaps = [
+                    f"{clean_root}/sitemap_index.xml",
+                    f"{clean_root}/sitemap.xml",
+                    f"{clean_root}/sitemaps.xml",
+                    f"{clean_root}/server-sitemap.xml",
+                    f"{clean_root}/sitemap/sitemap.xml",
+                    f"{clean_root}/sitemap-pages.xml",
+                    f"{clean_root}/sitemap-posts.xml",
+                    f"{clean_root}/sitemap-1.xml",
+                    f"{clean_root}/wp-sitemap.xml",
+                ]
+                for cs in common_sitemaps:
+                    candidate_sitemaps.add(cs)
+
+            for sm in candidate_sitemaps:
+                s_urls = await self.fetch_sitemap(sm, client_pri)
                 for u in s_urls:
                     u_clean = u.rstrip("/")
-                    self.sitemap_urls.add(u_clean)
-                    if u_clean not in self.discovered_urls and len(self.discovered_urls) < self.max_pages:
-                        self.discovered_urls[u_clean] = {
-                            "url": u_clean,
-                            "source": "sitemap",
-                            "found_on": sitemap_url,
-                        }
+                    parsed_u = urlparse(u_clean)
+                    if parsed_u.netloc.lower() == self.domain or parsed_u.netloc.lower().endswith("." + self.domain):
+                        self.sitemap_urls.add(u_clean)
+                        if u_clean not in self.discovered_urls and len(self.discovered_urls) < self.max_pages:
+                            self.discovered_urls[u_clean] = {
+                                "url": u_clean,
+                                "source": "sitemap",
+                                "found_on": sm,
+                            }
 
             # 3. Register Imported URLs (Section 2.1)
             if extra_urls:
@@ -597,8 +628,8 @@ class PoliteCrawler:
 
                                 self.crawled_pages.append(snapshot)
 
-                                # Discover internal links
-                                hrefs = re.findall(r'href=["\'](.*?)["\']', response.text, re.IGNORECASE)
+                                # Discover internal links (href, routerLink, ng-reflect-router-link for Angular/SPAs)
+                                hrefs = re.findall(r'(?:href|routerLink|ng-reflect-router-link)=["\'](.*?)["\']', response.text, re.IGNORECASE)
                                 for href in hrefs:
                                     full_url = urljoin(url, href).split("#")[0].rstrip("/")
                                     parsed = urlparse(full_url)

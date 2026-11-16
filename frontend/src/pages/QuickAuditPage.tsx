@@ -118,7 +118,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
           body: JSON.stringify({
             rootUrl: cleanRoot,
             sitemapUrl: sitemapUrl.trim() || undefined,
-            maxPages: 60,
+            maxPages: 5000,
             targetYear: 2027,
             locale: isAr ? 'ar' : 'en',
           }),
@@ -130,14 +130,14 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
         console.warn('Local /api/quick-audit not reachable, falling back to Supabase function...', err);
       }
 
-      // 2. Fallback to Supabase Edge Function
+      // 2. Fallback to Supabase Edge Function (Zero CORS, handles Angular / SPA / 2900+ pages)
       if (!resultData && supabase) {
         try {
           const { data, error } = await supabase.functions.invoke('quick-audit', {
             body: {
               rootUrl: cleanRoot,
               sitemapUrl: sitemapUrl.trim() || undefined,
-              maxPages: 60,
+              maxPages: 5000,
               targetYear: 2027,
               locale: isAr ? 'ar' : 'en',
             },
@@ -146,6 +146,24 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
             resultData = data;
           }
         } catch (e) {}
+
+        if (!resultData) {
+          try {
+            const { data, error } = await supabase.functions.invoke('send-audit-report', {
+              body: {
+                type: 'crawl_site',
+                rootUrl: cleanRoot,
+                sitemapUrl: sitemapUrl.trim() || undefined,
+                maxPages: 5000,
+                targetYear: 2027,
+                locale: isAr ? 'ar' : 'en',
+              },
+            });
+            if (!error && data?.success) {
+              resultData = data;
+            }
+          } catch (e) {}
+        }
       }
 
       // 3. Fallback to client-side in-browser crawler execution
@@ -154,7 +172,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
         resultData = await executeSiteCrawl({
           rootUrl: cleanRoot,
           sitemapUrl: sitemapUrl.trim() || undefined,
-          maxPages: 60,
+          maxPages: 5000,
           targetYear: 2027,
           locale: isAr ? 'ar' : 'en',
         });

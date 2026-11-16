@@ -65,12 +65,24 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
   const isAr = locale !== 'en';
   const [query, setQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [selectedPage, setSelectedPage] = useState<PageRecord | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'links' | 'schemas' | 'meta'>('links');
   const [linkSearch, setLinkSearch] = useState('');
   const [linkStatusFilter, setLinkStatusFilter] = useState<'all' | '200' | '301' | 'broken'>('all');
   const [expandedSchemaIndex, setExpandedSchemaIndex] = useState<number | null>(null);
   const [copiedSchemaIndex, setCopiedSchemaIndex] = useState<number | null>(null);
+
+  const handleQueryChange = (val: string) => {
+    setQuery(val);
+    setCurrentPage(1);
+  };
+
+  const handleTypeChange = (type: string) => {
+    setSelectedType(type);
+    setCurrentPage(1);
+  };
 
   const handleCopyCode = (code: string, idx: number) => {
     if (!code) return;
@@ -157,8 +169,8 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
         </div>
         <div className="flex items-center gap-3">
           <div className="px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-xs font-bold text-ink">
-            <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{isAr ? 'إجمالي الصفحات:' : 'Total Pages:'}</span>
-            <span className="text-gold font-mono">{pages.length}</span>
+            <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{isAr ? 'إجمالي الصفحات المكتشفة:' : 'Total Discovered Pages:'}</span>
+            <span className="text-gold font-mono font-extrabold">{pages.length.toLocaleString()}</span>
           </div>
           <div className="px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-xs font-bold text-ink">
             <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{t('pages.internal_links')}:</span>
@@ -189,7 +201,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                 type="text"
                 placeholder={t('pages.search_placeholder')}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => handleQueryChange(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 rtl:pr-9 rtl:pl-4 bg-surface rounded-lg border border-surface-hairline text-body-md text-ink placeholder:text-ink-muted focus:outline-none focus:border-gold-border text-xs"
               />
             </div>
@@ -198,7 +210,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
               {['all', 'article', 'project', 'service', 'home', 'contact', 'other'].map((type) => (
                 <button
                   key={type}
-                  onClick={() => setSelectedType(type)}
+                  onClick={() => handleTypeChange(type)}
                   className={`px-2.5 py-1 rounded-md font-bold transition-all ${
                     selectedType === type
                       ? 'bg-ink text-white'
@@ -226,91 +238,158 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-hairline text-xs">
-                {filtered.map((p, idx) => {
-                  const linksCount = p.internalLinks?.length || 0;
-                  const schemasCount = p.schemas?.length || 0;
-                  return (
-                    <tr
-                      key={idx}
-                      onClick={() => setSelectedPage(p)}
-                      className="hover:bg-gold-tint/20 transition-colors cursor-pointer"
-                    >
-                      <td className="py-3 px-4 font-mono font-bold">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                            p.statusCode === 200
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : p.statusCode >= 300 && p.statusCode < 400
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {p.statusCode}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-ink max-w-xs truncate">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate" title={safeDecodeUrl(p.url)}>{safeDecodeUrl(p.url)}</span>
-                          <a
-                            href={p.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-ink-muted hover:text-gold shrink-0"
+                {(() => {
+                  const totalPagesCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+                  const startIndex = (currentPage - 1) * pageSize;
+                  const endIndex = Math.min(startIndex + pageSize, filtered.length);
+                  const paginatedPages = filtered.slice(startIndex, endIndex);
+
+                  return paginatedPages.map((p, idx) => {
+                    const linksCount = p.internalLinks?.length || 0;
+                    const schemasCount = p.schemas?.length || 0;
+                    return (
+                      <tr
+                        key={idx}
+                        onClick={() => setSelectedPage(p)}
+                        className="hover:bg-gold-tint/20 transition-colors cursor-pointer"
+                      >
+                        <td className="py-3 px-4 font-mono font-bold">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                              p.statusCode === 200
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : p.statusCode >= 300 && p.statusCode < 400
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-ink font-semibold">
-                        <span className="px-2 py-0.5 rounded bg-surface border text-[11px] text-ink-light">
-                          {getPageTypeLabel(p.pageType || 'other')}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-ink font-semibold max-w-xs truncate" title={p.title}>
-                        {p.title || (isAr ? 'بدون عنوان' : '<No Title>')}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-gold-tint text-gold border border-gold-border">
-                          <Link2 className="w-3 h-3" />
-                          {linksCount} {isAr ? 'رابط' : 'links'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-ink-muted">
-                        {schemasCount > 0 ? (
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {p.schemas.slice(0, 3).map((s, sIdx) => (
-                              <span key={sIdx} className="px-1.5 py-0.5 bg-surface rounded border text-ink-light text-[10px]">
-                                {s}
-                              </span>
-                            ))}
-                            {schemasCount > 3 && (
-                              <span className="px-1.5 py-0.5 bg-gold-tint rounded border border-gold-border text-gold text-[10px] font-bold">
-                                +{schemasCount - 3}
-                              </span>
-                            )}
+                            {p.statusCode}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-ink max-w-xs truncate">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate" title={safeDecodeUrl(p.url)}>{safeDecodeUrl(p.url)}</span>
+                            <a
+                              href={p.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-ink-muted hover:text-gold shrink-0"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
                           </div>
-                        ) : (
-                          <span className="text-ink-muted italic">{isAr ? 'لا يوجد' : 'None'}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPage(p);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-surface border border-surface-hairline text-ink hover:text-gold hover:border-gold-border text-xs font-bold inline-flex items-center gap-1 transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>{isAr ? 'تفاصيل' : 'Inspect'}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="py-3 px-4 text-ink font-semibold">
+                          <span className="px-2 py-0.5 rounded bg-surface border text-[11px] text-ink-light">
+                            {getPageTypeLabel(p.pageType || 'other')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-ink font-semibold max-w-xs truncate" title={p.title}>
+                          {p.title || (isAr ? 'بدون عنوان' : '<No Title>')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-gold-tint text-gold border border-gold-border">
+                            <Link2 className="w-3 h-3" />
+                            {linksCount} {isAr ? 'رابط' : 'links'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-ink-muted">
+                          {schemasCount > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {p.schemas.slice(0, 3).map((s, sIdx) => (
+                                <span key={sIdx} className="px-1.5 py-0.5 bg-surface rounded border text-ink-light text-[10px]">
+                                  {s}
+                                </span>
+                              ))}
+                              {schemasCount > 3 && (
+                                <span className="px-1.5 py-0.5 bg-gold-tint rounded border border-gold-border text-gold text-[10px] font-bold">
+                                  +{schemasCount - 3}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-ink-muted italic">{isAr ? 'لا يوجد' : 'None'}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPage(p);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-surface border border-surface-hairline text-ink hover:text-gold hover:border-gold-border text-xs font-bold inline-flex items-center gap-1 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>{isAr ? 'تفاصيل' : 'Inspect'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {filtered.length > 0 && (() => {
+              const totalPagesCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+              const startIndex = (currentPage - 1) * pageSize;
+              const endIndex = Math.min(startIndex + pageSize, filtered.length);
+
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-surface border-t border-surface-hairline text-xs text-ink-muted">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {isAr
+                        ? `عرض ${startIndex + 1} - ${endIndex} من أصل ${filtered.length.toLocaleString()} صفحة`
+                        : `Showing ${startIndex + 1} - ${endIndex} of ${filtered.length.toLocaleString()} pages`}
+                    </span>
+                    <span className="text-surface-hairline">|</span>
+                    <div className="flex items-center gap-1">
+                      <span>{isAr ? 'لكل صفحة:' : 'Per page:'}</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="bg-white border border-surface-hairline rounded px-1.5 py-0.5 text-ink font-semibold"
+                      >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={250}>250</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {totalPagesCount > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-2.5 py-1 rounded bg-white border border-surface-hairline text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold-tint/40 transition-colors"
+                      >
+                        {isAr ? 'السابق' : 'Previous'}
+                      </button>
+
+                      <span className="px-2 font-mono font-bold text-ink">
+                        {currentPage} / {totalPagesCount}
+                      </span>
+
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}
+                        disabled={currentPage === totalPagesCount}
+                        className="px-2.5 py-1 rounded bg-white border border-surface-hairline text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold-tint/40 transition-colors"
+                      >
+                        {isAr ? 'التالي' : 'Next'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </>
       )}

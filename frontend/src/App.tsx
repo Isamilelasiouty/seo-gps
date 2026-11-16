@@ -413,7 +413,7 @@ export const AppContent: React.FC = () => {
           body: JSON.stringify({
             rootUrl: activeProject.root_url || `https://${activeProject.domain}/`,
             sitemapUrl: activeProject.sitemap_url || undefined,
-            maxPages: 60,
+            maxPages: 5000,
             targetYear: 2027,
             locale: isAr ? 'ar' : 'en',
           }),
@@ -423,11 +423,47 @@ export const AppContent: React.FC = () => {
         }
       } catch (e) {}
 
+      // Try Supabase Server-side Edge Crawler (Zero CORS)
+      if ((!result || !result.success) && supabase) {
+        try {
+          const { data, error } = await supabase.functions.invoke('quick-audit', {
+            body: {
+              rootUrl: activeProject.root_url || `https://${activeProject.domain}/`,
+              sitemapUrl: activeProject.sitemap_url || undefined,
+              maxPages: 5000,
+              targetYear: 2027,
+              locale: isAr ? 'ar' : 'en',
+            },
+          });
+          if (!error && data?.success) {
+            result = data;
+          }
+        } catch (_) {}
+
+        if (!result || !result.success) {
+          try {
+            const { data, error } = await supabase.functions.invoke('send-audit-report', {
+              body: {
+                type: 'crawl_site',
+                rootUrl: activeProject.root_url || `https://${activeProject.domain}/`,
+                sitemapUrl: activeProject.sitemap_url || undefined,
+                maxPages: 5000,
+                targetYear: 2027,
+                locale: isAr ? 'ar' : 'en',
+              },
+            });
+            if (!error && data?.success) {
+              result = data;
+            }
+          } catch (_) {}
+        }
+      }
+
       if (!result || !result.success) {
         result = await executeSiteCrawl({
           rootUrl: activeProject.root_url || `https://${activeProject.domain}/`,
           sitemapUrl: activeProject.sitemap_url || undefined,
-          maxPages: 60,
+          maxPages: 5000,
           targetYear: 2027,
           locale: isAr ? 'ar' : 'en',
         });

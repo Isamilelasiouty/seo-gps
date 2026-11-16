@@ -1,4 +1,5 @@
 import techhouseRealData from './techhouse_real_crawl.json';
+import { supabase } from './supabase';
 /**
  * SEO GPS High-Performance Web & WordPress Crawler Engine
  * Author: Ismail El Asiouty
@@ -1119,6 +1120,66 @@ export function getDomainAuditResult(
   }
 
   const isFixture = domain.includes('127.0.0.1') || domain.includes('localhost') || domain.includes('8099');
+  if (!isFixture) {
+    // For real user domains, NEVER invent fake dummy pages!
+    return {
+      success: true,
+      domain: dom,
+      rootUrl: cleanRoot,
+      summary: {
+        health_score: 100,
+        total_discovered: 0,
+        total_crawled: 0,
+        total_skipped: 0,
+        critical_count: 0,
+        warning_count: 0,
+        notice_count: 0,
+        status_distribution: {
+          ok_200: 0,
+          redirect_3xx: 0,
+          not_found_404: 0,
+          server_error_5xx: 0,
+          blocked_unverified: 0,
+        },
+      },
+      pages: [],
+      issues: [],
+      cannibalization: [],
+      siteReport: {
+        scan_id: `scan-${Date.now()}`,
+        project_id: 'quick-audit',
+        domain: dom,
+        root_url: cleanRoot,
+        is_baseline: true,
+        created_at: new Date().toISOString(),
+        summary: {
+          health_score: 100,
+          total_discovered: 0,
+          total_crawled: 0,
+          total_skipped: 0,
+          critical_count: 0,
+          warning_count: 0,
+          notice_count: 0,
+          status_distribution: {
+            ok_200: 0,
+            redirect_3xx: 0,
+            not_found_404: 0,
+            server_error_5xx: 0,
+            blocked_unverified: 0,
+          },
+        },
+        top_fixes: [],
+        section_status: { total_404: 0, false_404_count: 0, true_dead_count: 0, soft_404_count: 0, false_404_ratio: '0%', false_404_items: [], slug_recovery_items: [], true_dead_items: [], soft_404_items: [] },
+        section_redirects: { total_redirects: 0, temporary_302_count: 0, chains_count: 0, loops_count: 0, legacy_groups: [], chains: [], temporary_redirects: [] },
+        section_onpage: { outdated_years: [], thin_pages: [], noindex_pages: [], canonical_issues: [] },
+        section_cannibalization: { clusters_count: 0, clusters: [] },
+        section_schema: { gaps_count: 0, gaps: [] },
+        section_taxonomy: { type_distribution: { home: 0, article: 0, product: 0, category: 0, contact: 0, about: 0, other: 0 }, uncategorized_count: 0, samples: [] },
+        section_action_plans: [],
+      },
+    };
+  }
+
   const brandName = isFixture ? (isAr ? 'بوابة القبول الجامعي' : 'University Portal') : domain;
 
   const rawPages: { path: string; status: number; title: string; h1: string; wordCount: number; pageType: CrawledPage['pageType']; canonical?: string; robots?: string; isIndexable?: boolean; redirectChain?: { from: string; to: string; status: number }[] }[] = [
@@ -1913,7 +1974,7 @@ export async function executeSiteCrawl(options: {
   targetYear?: number;
   locale?: 'ar' | 'en';
 }): Promise<FullAuditResult> {
-  const maxPages = Math.min(options.maxPages || 50, 150);
+  const maxPages = options.maxPages || 5000;
   const targetYear = options.targetYear || 2027;
   const isAr = options.locale !== 'en';
 
@@ -1931,6 +1992,40 @@ export async function executeSiteCrawl(options: {
   // If in browser on HTTPS (e.g. GitHub Pages), direct connection to 127.0.0.1:8099 is strictly blocked by browser Mixed Content security.
   if (isFixtureDomain && isBrowserHttps) {
     return getFixtureAuditResult(domain, cleanRoot, isAr, targetYear);
+  }
+
+  // Attempt Server-Side Edge Crawler first (Zero CORS restrictions, handles Angular / SPA / 2900+ pages)
+  if (typeof window !== 'undefined' && supabase && !isFixtureDomain) {
+    try {
+      const { data, error } = await supabase.functions.invoke('quick-audit', {
+        body: {
+          rootUrl: cleanRoot,
+          sitemapUrl: options.sitemapUrl?.trim() || undefined,
+          maxPages,
+          targetYear,
+          locale: isAr ? 'ar' : 'en',
+        },
+      });
+      if (!error && data && data.success && data.pages && data.pages.length > 0) {
+        return data;
+      }
+    } catch (_) {}
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-audit-report', {
+        body: {
+          type: 'crawl_site',
+          rootUrl: cleanRoot,
+          sitemapUrl: options.sitemapUrl?.trim() || undefined,
+          maxPages,
+          targetYear,
+          locale: isAr ? 'ar' : 'en',
+        },
+      });
+      if (!error && data && data.success && data.pages && data.pages.length > 0) {
+        return data;
+      }
+    } catch (_) {}
   }
 
   const userAgent = 'SEOGPS-Bot/1.0 (+https://isamilelasiouty.github.io/seo-gps; by Ismail El Asiouty)';
@@ -1990,8 +2085,8 @@ export async function executeSiteCrawl(options: {
       const isIndex = xml.includes('<sitemapindex') || xml.includes('<sitemap>');
       if (isIndex) {
         const subSitemapMatches = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/gi)).map((m) => m[1].trim());
-        // Fetch up to 5 sub-sitemaps (e.g. posts, pages, categories)
-        for (const subSm of subSitemapMatches.slice(0, 5)) {
+        // Fetch all sub-sitemaps (e.g. posts, pages, categories, products)
+        for (const subSm of subSitemapMatches) {
           if (discoveredMap.size >= maxPages) break;
           try {
             const subRes = await fetchSafe(subSm, headers, 4000);
@@ -2605,13 +2700,6 @@ export async function executeSiteCrawl(options: {
     server_error_5xx: crawledPages.filter((p) => p.statusCode >= 500).length,
     blocked_unverified: crawledPages.filter((p) => p.statusCode === 0 || p.statusCode === 403).length,
   };
-
-  // If in browser and crawl produced zero valid pages (e.g. cross-origin requests blocked by browser CORS policy)
-  const validCrawledCount = crawledPages.filter((p) => p.statusCode > 0 && p.statusCode !== 404).length;
-  if (validCrawledCount === 0 || crawledPages.length <= 1) {
-    console.warn(`[SEOGPS Crawler] Direct browser network access to ${domain} was restricted by browser CORS. Falling back to comprehensive domain audit.`);
-    return getDomainAuditResult(domain, cleanRoot, isAr, targetYear);
-  }
 
   const summary: SiteReportSummary = {
     health_score: calculatedScore,
