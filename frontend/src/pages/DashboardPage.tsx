@@ -111,9 +111,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const isAudited = Boolean(activeProject.last_run_at);
 
   const critVal = issuesSummary?.critical ?? 0;
-  const warnVal = issuesSummary?.warning ?? 14;
-  const noticVal = issuesSummary?.notice ?? 6;
-  const pagesVal = issuesSummary?.pages ?? 180;
+  const warnVal = issuesSummary?.warning ?? 0;
+  const noticVal = issuesSummary?.notice ?? 0;
+  const pagesVal = issuesSummary?.pages ?? 0;
   const resolvedVal = issuesSummary?.resolved ?? 0;
 
   return (
