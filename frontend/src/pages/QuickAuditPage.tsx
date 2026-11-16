@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { FullAuditResult, resolveCannibalization, resolveTopFix, executeSiteCrawl } from '../lib/siteCrawler';
 import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
 import { saveLead, getLeadsCount } from '../lib/leadTracker';
+import { safeSetStorageItem } from '../lib/storageHelper';
 import {
   Sparkles,
   Globe,
@@ -106,7 +107,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
     try {
       setProgressPercent(35);
-      setProgressMsg(t('quick_audit.crawling_pages').replace('{current}', '1').replace('{total}', '60'));
+      setProgressMsg(isAr ? 'جاري فحص خريطة الموقع والصفحات والمقالات...' : 'Crawling sitemap, pages, and blog posts...');
 
       let resultData: FullAuditResult | null = null;
 
@@ -187,15 +188,15 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
 
       setAuditResult(resultData);
 
-      // Persist real audit data in LocalStorage
-      localStorage.setItem('seo_gps_report_quick', JSON.stringify(resultData.siteReport));
-      localStorage.setItem('seo_gps_pages_quick', JSON.stringify(resultData.pages));
-      localStorage.setItem('seo_gps_issues_quick', JSON.stringify(resultData.issues));
+      // Persist real audit data in LocalStorage safely (handles 2,000+ pages)
+      safeSetStorageItem('seo_gps_report_quick', resultData.siteReport);
+      safeSetStorageItem('seo_gps_pages_quick', resultData.pages);
+      safeSetStorageItem('seo_gps_issues_quick', resultData.issues);
 
       if (activeProject?.id) {
-        localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(resultData.siteReport));
-        localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(resultData.pages));
-        localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(resultData.issues));
+        safeSetStorageItem(`seo_gps_report_${activeProject.id}`, resultData.siteReport);
+        safeSetStorageItem(`seo_gps_pages_${activeProject.id}`, resultData.pages);
+        safeSetStorageItem(`seo_gps_issues_${activeProject.id}`, resultData.issues);
       }
 
       // Mandatory Email delivery via Resend / Edge Function

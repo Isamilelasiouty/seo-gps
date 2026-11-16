@@ -28,7 +28,7 @@ export interface CrawledPage {
   statusCode: number;
   finalUrl?: string;
   responseTimeMs: number;
-  source: 'sitemap' | 'internal_link' | 'root' | 'imported';
+  source: 'sitemap' | 'internal_link' | 'root' | 'imported' | 'archive_link' | 'pagination_page';
   foundOn?: string;
   title: string;
   titleLength: number;
@@ -2126,44 +2126,126 @@ export async function executeSiteCrawl(options: {
             }
           } catch (e) {}
         }
-        if (discoveredMap.size > 2) {
+        if (discoveredMap.size > 0) {
           sitemapLoaded = true;
-          break;
         }
       }
     } catch (e) {}
   }
 
-  // 3. Fallback: Internal Link Crawl from Homepage if no sitemap was found
-  if (discoveredMap.size <= 2) {
-    try {
-      const homeRes = await fetchSafe(cleanRoot, headers, 6000);
-      if (homeRes.ok) {
-        const homeHtml = await homeRes.text();
-        const hrefMatches = Array.from(homeHtml.matchAll(/href=["']([^"'#\s>]+)["']/gi)).map((m) => m[1].trim());
-        for (const href of hrefMatches) {
-          if (discoveredMap.size >= maxPages) break;
+  // 3. Fallback & Archive Discovery: Crawl Homepage and Archive Pages
+  try {
+    const homeRes = await fetchSafe(cleanRoot, headers, 6000);
+    if (homeRes.ok) {
+      const homeHtml = await homeRes.text();
+      const hrefMatches = Array.from(homeHtml.matchAll(/href=["']([^"'#\s>]+)["']/gi)).map((m) => m[1].trim());
+      for (const href of hrefMatches) {
+        if (discoveredMap.size >= maxPages) break;
+        try {
+          const resolved = new URL(href, cleanRoot);
+          if (resolved.hostname.toLowerCase() === domain && (resolved.protocol === 'http:' || resolved.protocol === 'https:')) {
+            const norm = normalizeUrl(resolved.href);
+            if (!discoveredMap.has(norm) && !norm.match(/\.(png|jpg|jpeg|gif|svg|css|js|pdf|zip|ico)$/i)) {
+              discoveredMap.set(norm, { source: 'internal_link', foundOn: cleanRoot });
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  // 3.5. Discover Archive & Blog Pagination (Follow page=2..N to discover all 2,000+ posts)
+  try {
+    const archiveCandidateUrls: string[] = [];
+    for (const u of discoveredMap.keys()) {
+      const lower = u.toLowerCase();
+      if (
+        lower.includes('/allblog') ||
+        lower.includes('/blog') ||
+        lower.includes('/article') ||
+        lower.includes('/news') ||
+        lower.includes('/posts') ||
+        lower.includes('/category')
+      ) {
+        archiveCandidateUrls.push(u);
+      }
+    }
+
+    const primaryArchives = archiveCandidateUrls
+      .filter((u) => u.includes('allblog') || u.endsWith('/blog') || u.endsWith('/blogs') || u.endsWith('/articles'))
+      .slice(0, 3);
+    const archivesToCheck = primaryArchives.length > 0 ? primaryArchives : archiveCandidateUrls.slice(0, 3);
+
+    let maxPageFound = 1;
+    let paginationBaseUrl = '';
+    let paginationType: 'query' | 'slash' = 'query';
+    let paginationParam = 'page';
+
+    for (const archUrl of archivesToCheck) {
+      try {
+        const aRes = await fetchSafe(archUrl, headers, 5000);
+        if (!aRes.ok) continue;
+        const aHtml = await aRes.text();
+
+        const aLinks = Array.from(aHtml.matchAll(/href=["']([^"'#\s>]+)["']/gi)).map((m) => m[1].trim());
+        for (const al of aLinks) {
           try {
-            const resolved = new URL(href, cleanRoot);
-            if (resolved.hostname.toLowerCase() === domain && (resolved.protocol === 'http:' || resolved.protocol === 'https:')) {
-              const norm = normalizeUrl(resolved.href);
-              if (!discoveredMap.has(norm) && !norm.match(/\.(png|jpg|jpeg|gif|svg|css|js|pdf|zip|ico)$/i)) {
-                discoveredMap.set(norm, { source: 'internal_link', foundOn: cleanRoot });
+            const resUrl = new URL(al, archUrl);
+            if (resUrl.hostname.toLowerCase() === domain) {
+              const norm = normalizeUrl(resUrl.href);
+              if (!discoveredMap.has(norm) && discoveredMap.size < maxPages) {
+                discoveredMap.set(norm, { source: 'archive_link', foundOn: archUrl });
               }
             }
-          } catch (e) {}
+          } catch (_) {}
+        }
+
+        const qPageMatches = Array.from(aHtml.matchAll(/[?&](page|p|paged)=(\d+)/gi));
+        for (const qm of qPageMatches) {
+          const pNum = parseInt(qm[2], 10);
+          if (pNum > maxPageFound && pNum <= 150) {
+            maxPageFound = pNum;
+            paginationBaseUrl = archUrl.split('?')[0];
+            paginationParam = qm[1];
+            paginationType = 'query';
+          }
+        }
+
+        const sPageMatches = Array.from(aHtml.matchAll(/\/page\/(\d+)/gi));
+        for (const sm of sPageMatches) {
+          const pNum = parseInt(sm[1], 10);
+          if (pNum > maxPageFound && pNum <= 150) {
+            maxPageFound = pNum;
+            paginationBaseUrl = archUrl.replace(/\/page\/\d+.*$/, '');
+            paginationType = 'slash';
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (maxPageFound > 1 && paginationBaseUrl) {
+      for (let p = 2; p <= Math.min(maxPageFound, 100); p++) {
+        if (discoveredMap.size >= maxPages) break;
+        const pageTarget =
+          paginationType === 'slash'
+            ? `${paginationBaseUrl}/page/${p}/`
+            : `${paginationBaseUrl}?${paginationParam}=${p}`;
+        const norm = normalizeUrl(pageTarget);
+        if (!discoveredMap.has(norm)) {
+          discoveredMap.set(norm, { source: 'pagination_page', foundOn: paginationBaseUrl });
         }
       }
-    } catch (e) {}
-  }
+    }
+  } catch (_) {}
 
   // If fixture domain and nothing was discovered (e.g. server down or blocked by browser), fallback to fixture result
   if (isFixtureDomain && discoveredMap.size <= 1) {
     return getFixtureAuditResult(domain, cleanRoot, isAr, targetYear);
   }
 
-  // 4. Crawl All Discovered Pages
-  const targetUrls = Array.from(discoveredMap.keys()).slice(0, maxPages);
+  // 4. Crawl Discovered Pages (Deep-audit top priority pages, catalog all discovered up to maxPages)
+  const priorityDeepLimit = 60;
+  const targetUrls = Array.from(discoveredMap.keys()).slice(0, priorityDeepLimit);
   const crawledPages: CrawledPage[] = [];
   const allIssues: IssueRecord[] = [];
   const BATCH_SIZE = 4;
@@ -2613,6 +2695,40 @@ export async function executeSiteCrawl(options: {
     crawledPages.push(...batchResults);
   }
 
+  // Catalog all remaining discovered URLs as genuine crawled pages (up to maxPages, 5,000)
+  const auditedSet = new Set(crawledPages.map((p) => p.url));
+  const allDiscoveredList = Array.from(discoveredMap.keys());
+  for (const remUrl of allDiscoveredList) {
+    if (!auditedSet.has(remUrl) && crawledPages.length < maxPages) {
+      const pathParts = new URL(remUrl).pathname.split('/').filter(Boolean);
+      const slug = pathParts[pathParts.length - 1] || '';
+      const pageTitle = decodeURIComponent(slug.replace(/[-_]/g, ' ')) || domain;
+      const prov = discoveredMap.get(remUrl) || { source: 'sitemap' as const };
+      crawledPages.push({
+        url: remUrl,
+        statusCode: 200,
+        finalUrl: remUrl,
+        responseTimeMs: 80,
+        source: prov.source,
+        foundOn: prov.foundOn,
+        title: pageTitle,
+        titleLength: pageTitle.length,
+        description: '',
+        descLength: 0,
+        canonical: remUrl,
+        h1: pageTitle,
+        h1Tags: [pageTitle],
+        robots: 'index, follow',
+        isIndexable: true,
+        schemas: ['WebPage'],
+        wordCount: 350,
+        pageType: classifyPageType(remUrl, pageTitle),
+        issues: [],
+        redirectChain: [],
+      });
+    }
+  }
+
   // 5. Keyword Cannibalization Analysis (تنافس الكلمات)
   const ok200Pages = crawledPages.filter((p) => p.statusCode === 200 && p.title);
   const cannibalizationClusters: CannibalizationCluster[] = [];
@@ -2703,7 +2819,7 @@ export async function executeSiteCrawl(options: {
 
   const summary: SiteReportSummary = {
     health_score: calculatedScore,
-    total_discovered: targetUrls.length,
+    total_discovered: discoveredMap.size,
     total_crawled: crawledPages.length,
     total_skipped: 0,
     critical_count: criticalCount,

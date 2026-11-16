@@ -12,6 +12,7 @@ import { ProactiveAiAssistant } from './components/ProactiveAiAssistant';
 import { getDomainAuditResult, executeSiteCrawl } from './lib/siteCrawler';
 import { getProjectSnapshots, getResolvedIssues, createAndSaveSnapshot } from './lib/snapshotManager';
 import { syncLeadsFromCloud } from './lib/leadTracker';
+import { safeSetStorageItem } from './lib/storageHelper';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -479,9 +480,9 @@ export const AppContent: React.FC = () => {
           health_score: score,
         };
 
-        localStorage.setItem(`seo_gps_report_${activeProject.id}`, JSON.stringify(result.siteReport));
-        localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(result.pages));
-        localStorage.setItem(`seo_gps_issues_${activeProject.id}`, JSON.stringify(result.issues));
+        safeSetStorageItem(`seo_gps_report_${activeProject.id}`, result.siteReport);
+        safeSetStorageItem(`seo_gps_pages_${activeProject.id}`, result.pages);
+        safeSetStorageItem(`seo_gps_issues_${activeProject.id}`, result.issues);
 
         // Create and persist historical snapshot
         try {

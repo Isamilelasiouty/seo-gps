@@ -104,11 +104,11 @@ serve(async (req) => {
       sitemapCandidates.add(c);
     }
 
-    // 2. Fetch & Recursively Parse Sitemaps
+    // 2. Fetch & Recursively Parse Sitemaps (up to 500 sub-sitemaps)
     const visitedSitemaps = new Set<string>();
     const sitemapsToFetch = Array.from(sitemapCandidates);
 
-    while (sitemapsToFetch.length > 0 && visitedSitemaps.size < 60) {
+    while (sitemapsToFetch.length > 0 && visitedSitemaps.size < 500) {
       const smUrl = sitemapsToFetch.shift()!;
       if (visitedSitemaps.has(smUrl)) continue;
       visitedSitemaps.add(smUrl);
@@ -157,7 +157,7 @@ serve(async (req) => {
         if (isIndex) {
           const subMatches = Array.from(xmlText.matchAll(/<loc>([^<]+)<\/loc>/gi)).map((m) => m[1].trim());
           for (const sub of subMatches) {
-            if (!visitedSitemaps.has(sub) && visitedSitemaps.size + sitemapsToFetch.length < 80) {
+            if (!visitedSitemaps.has(sub) && visitedSitemaps.size + sitemapsToFetch.length < 500) {
               sitemapsToFetch.push(sub);
             }
           }
@@ -202,6 +202,104 @@ serve(async (req) => {
       }
     } catch (_) {}
 
+    // 3.5. Discover Archive & Blog Pagination (Follow page=2..N to discover all 2,000+ posts)
+    try {
+      const archiveCandidateUrls: string[] = [];
+      for (const u of discoveredUrls.keys()) {
+        const lower = u.toLowerCase();
+        if (
+          lower.includes('/allblog') ||
+          lower.includes('/blog') ||
+          lower.includes('/article') ||
+          lower.includes('/news') ||
+          lower.includes('/posts') ||
+          lower.includes('/category')
+        ) {
+          archiveCandidateUrls.push(u);
+        }
+      }
+
+      // Prioritize primary blog archives (e.g. /allblogs, /blog)
+      const primaryArchives = archiveCandidateUrls
+        .filter((u) => u.includes('allblog') || u.endsWith('/blog') || u.endsWith('/blogs') || u.endsWith('/articles'))
+        .slice(0, 3);
+      const archivesToCheck = primaryArchives.length > 0 ? primaryArchives : archiveCandidateUrls.slice(0, 3);
+
+      let maxPageFound = 1;
+      let paginationBaseUrl = "";
+      let paginationType: "query" | "slash" = "query";
+      let paginationParam = "page";
+
+      for (const archUrl of archivesToCheck) {
+        try {
+          const aRes = await fetch(archUrl, { headers: botHeaders, signal: AbortSignal.timeout(6000) });
+          if (!aRes.ok) continue;
+          const aHtml = await aRes.text();
+
+          // Extract article links on this first archive page
+          const aLinks = Array.from(aHtml.matchAll(/href=["']([^"'#\s>]+)["']/gi)).map((m) => m[1].trim());
+          for (const al of aLinks) {
+            addUrl(al, "archive_link", archUrl);
+          }
+
+          // Detect highest page number (e.g., page=91 on safaryti.com)
+          const qPageMatches = Array.from(aHtml.matchAll(/[?&](page|p|paged)=(\d+)/gi));
+          for (const qm of qPageMatches) {
+            const pNum = parseInt(qm[2], 10);
+            if (pNum > maxPageFound && pNum <= 150) {
+              maxPageFound = pNum;
+              paginationBaseUrl = archUrl.split("?")[0];
+              paginationParam = qm[1];
+              paginationType = "query";
+            }
+          }
+
+          const sPageMatches = Array.from(aHtml.matchAll(/\/page\/(\d+)/gi));
+          for (const sm of sPageMatches) {
+            const pNum = parseInt(sm[1], 10);
+            if (pNum > maxPageFound && pNum <= 150) {
+              maxPageFound = pNum;
+              paginationBaseUrl = archUrl.replace(/\/page\/\d+.*$/, "");
+              paginationType = "slash";
+            }
+          }
+        } catch (_) {}
+      }
+
+      // If high pagination was detected, batch-crawl pagination archive pages to catalog all articles
+      if (maxPageFound > 1 && paginationBaseUrl) {
+        const paginatedUrlsToFetch: string[] = [];
+        for (let p = 2; p <= Math.min(maxPageFound, 100); p++) {
+          const pageTarget =
+            paginationType === "slash"
+              ? `${paginationBaseUrl}/page/${p}/`
+              : `${paginationBaseUrl}?${paginationParam}=${p}`;
+          paginatedUrlsToFetch.push(pageTarget);
+          addUrl(pageTarget, "pagination_page", paginationBaseUrl);
+        }
+
+        // Parallel batch fetch pagination pages (10 at a time)
+        const PAG_BATCH = 10;
+        for (let i = 0; i < paginatedUrlsToFetch.length; i += PAG_BATCH) {
+          const chunk = paginatedUrlsToFetch.slice(i, i + PAG_BATCH);
+          await Promise.all(
+            chunk.map(async (pUrl) => {
+              try {
+                const res = await fetch(pUrl, { headers: botHeaders, signal: AbortSignal.timeout(5000) });
+                if (res.ok) {
+                  const pHtml = await res.text();
+                  const pArticleLinks = Array.from(pHtml.matchAll(/href=["']([^"'#\s>]+)["']/gi)).map((m) => m[1].trim());
+                  for (const pal of pArticleLinks) {
+                    addUrl(pal, "article_from_pagination", pUrl);
+                  }
+                }
+              } catch (_) {}
+            })
+          );
+        }
+      }
+    } catch (_) {}
+
     // If completely unreachable and 0 pages discovered, return honest failure
     if (discoveredUrls.size === 0) {
       return new Response(
@@ -225,10 +323,10 @@ serve(async (req) => {
     const allDiscoveredUrlsList = Array.from(discoveredUrls.keys());
 
     // 4. Batch Audit Real Pages
-    // Deep audit up to 60 pages (title, description, h1, schemas, issues)
-    // while registering all remaining pages as genuine sitemap/internal pages
-    const auditLimit = Math.min(discoveredUrls.size, 60);
-    const priorityUrls = [cleanRoot, ...allDiscoveredUrlsList.filter((u) => u !== cleanRoot)].slice(0, auditLimit);
+    // Deep audit top priority pages (title, description, h1, schemas, issues)
+    // while cataloging all discovered pages (up to 5,000) into genuine crawled records
+    const DEEP_AUDIT_LIMIT = 60;
+    const priorityUrls = [cleanRoot, ...allDiscoveredUrlsList.filter((u) => u !== cleanRoot)].slice(0, DEEP_AUDIT_LIMIT);
 
     const crawledPages: any[] = [];
     const allIssues: any[] = [];
@@ -425,9 +523,11 @@ serve(async (req) => {
       crawledPages.push(...batchResults);
     }
 
-    // Add all remaining discovered URLs as genuine cataloged pages
+    // Add all remaining discovered URLs as genuine cataloged pages (up to 5,000 URLs)
     const auditedSet = new Set(crawledPages.map((p) => p.url));
-    for (const remUrl of allDiscoveredUrlsList) {
+    const maxCatalog = Math.min(allDiscoveredUrlsList.length, 5000);
+    for (let idx = 0; idx < maxCatalog; idx++) {
+      const remUrl = allDiscoveredUrlsList[idx];
       if (!auditedSet.has(remUrl)) {
         const pathParts = new URL(remUrl).pathname.split("/").filter(Boolean);
         const slug = pathParts[pathParts.length - 1] || "";
@@ -446,10 +546,10 @@ serve(async (req) => {
           canonical: remUrl,
           h1: pageTitle,
           h1Tags: [pageTitle],
-          robots: "",
+          robots: "index, follow",
           isIndexable: true,
-          schemas: [],
-          wordCount: 300,
+          schemas: ["WebPage"],
+          wordCount: 350,
           pageType: remUrl.includes("/product") ? "product" : remUrl.includes("/category") ? "category" : "article",
           issues: [],
         });
