@@ -320,7 +320,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </div>
 
               <div className="py-2">
-                <GaugeChart score={activeProject.health_score || 92} />
+                <GaugeChart score={activeProject.health_score ?? (isAudited ? 100 : 0)} />
               </div>
 
               <div className="text-center pt-3 border-t border-slate-100 text-xs text-slate-500 font-medium">
