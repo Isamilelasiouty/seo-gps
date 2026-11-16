@@ -2048,11 +2048,14 @@ export async function executeSiteCrawl(options: {
     const robotsRes = await fetchSafe(`${cleanRoot}/robots.txt`, headers, 4000);
     if (robotsRes.ok) {
       const robotsTxt = await robotsRes.text();
-      const sitemapMatches = robotsTxt.matchAll(/Sitemap:\s*(https?:\/\/[^\s]+)/gi);
+      const sitemapMatches = Array.from(robotsTxt.matchAll(/Sitemap:\s*([^\r\n\s]+)/gi));
       for (const m of sitemapMatches) {
-        if (m[1] && !sitemapCandidates.includes(m[1])) {
-          sitemapCandidates.push(m[1].trim());
-        }
+        try {
+          const resolved = new URL(m[1].trim(), cleanRoot).href;
+          if (!sitemapCandidates.includes(resolved)) {
+            sitemapCandidates.unshift(resolved);
+          }
+        } catch (_) {}
       }
     }
   } catch (e) {}
@@ -2108,7 +2111,6 @@ export async function executeSiteCrawl(options: {
           } catch (e) {}
         }
         sitemapLoaded = true;
-        break;
       }
 
       // Check for urlset
@@ -2594,6 +2596,40 @@ export async function executeSiteCrawl(options: {
                 daysOpen: 0,
                 isBaseline: true,
                 status: 'persisting',
+              });
+            }
+
+            // Image Alt Tags Validation
+            const imgMatches = Array.from(html.matchAll(/<img\s+([^>]*?)>/gi));
+            let missingAltCount = 0;
+            for (const im of imgMatches) {
+              const attrs = im[1];
+              const altMatch = attrs.match(/\balt=["']([^"']*)["']/i);
+              if (!altMatch || !altMatch[1].trim()) {
+                missingAltCount++;
+              }
+            }
+            if (missingAltCount > 0) {
+              pageIssues.push({
+                id: `iss-imgalt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                fingerprint: `fp-imgalt-${url}`,
+                url,
+                checkId: 'image_alt_missing',
+                title: isAr
+                  ? `يوجد ${missingAltCount} صور بدون نص بديل (Alt Text)`
+                  : `${missingAltCount} images missing Alt attributes`,
+                title_ar: `يوجد ${missingAltCount} صور بدون نص بديل (Alt Text)`,
+                title_en: `${missingAltCount} images missing Alt attributes`,
+                severity: 'warning',
+                confidence: 'high',
+                firstSeen: new Date().toISOString(),
+                lastSeen: new Date().toISOString(),
+                daysOpen: 0,
+                isBaseline: true,
+                status: 'persisting',
+                details: `Detected ${missingAltCount} images lacking descriptive alt attributes.`,
+                details_ar: `تم رصد ${missingAltCount} صورة تفتقر للنص البديل Alt مما يضعف ظهورها في صور Google وفهم محركات البحث لها.`,
+                details_en: `Detected ${missingAltCount} images lacking descriptive alt attributes.`,
               });
             }
 

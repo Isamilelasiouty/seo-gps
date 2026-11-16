@@ -3,7 +3,8 @@ import { useI18n } from '../i18n';
 import { GaugeChart } from '../components/GaugeChart';
 import { supabase } from '../lib/supabase';
 import { FullAuditResult, resolveCannibalization, resolveTopFix, executeSiteCrawl } from '../lib/siteCrawler';
-import { exportStandaloneHTMLReport, exportReportCSV } from '../lib/reportExporter';
+import { exportStandaloneHTMLReport, exportReportCSV, exportAllPagesCSV } from '../lib/reportExporter';
+import { TablePagination } from '../components/TablePagination';
 import { saveLead, getLeadsCount } from '../lib/leadTracker';
 import { safeSetStorageItem } from '../lib/storageHelper';
 import {
@@ -79,6 +80,8 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
   });
 
   const [emailStatus, setEmailStatus] = useState<string>('');
+  const [tablePage, setTablePage] = useState<number>(1);
+  const [tablePageSize, setTablePageSize] = useState<number>(25);
 
   const handleRunFullAudit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -725,106 +728,123 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
             </div>
           )}
 
-          {/* 2. All Pages Table View */}
-          {(activeSection === 'all' || activeSection === 'status' || activeSection === 'schema') && (
-            <div className="editorial-card overflow-hidden">
-              <div className="p-4 bg-surface border-b border-surface-hairline flex items-center justify-between">
-                <h3 className="text-title-sm font-extrabold text-ink">
-                  {isAr ? 'قائمة الصفحات المفحوصة والمؤشرات التقنية' : 'Crawled URLs & Technical Metrics'}
-                </h3>
-                <span className="text-xs font-bold text-ink-muted font-mono">
-                  {pages.length} URLs
-                </span>
-              </div>
+          {/* 2. All Pages Table View with Pagination & Export All */}
+          {(activeSection === 'all' || activeSection === 'status' || activeSection === 'schema') && (() => {
+            const totalPagesCount = Math.max(1, Math.ceil(pages.length / tablePageSize));
+            const paginatedPages = pages.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize);
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-right rtl:text-right ltr:text-left text-body-sm">
-                  <thead className="bg-surface/50 text-ink-muted text-xs font-bold uppercase border-b border-surface-hairline">
-                    <tr>
-                      <th className="py-3 px-4">{isAr ? 'الرابط والعنوان' : 'URL & Title'}</th>
-                      <th className="py-3 px-4">{isAr ? 'الكود' : 'Status'}</th>
-                      <th className="py-3 px-4">{isAr ? 'النوع' : 'Type'}</th>
-                      <th className="py-3 px-4">{isAr ? 'الكلمات' : 'Words'}</th>
-                      <th className="py-3 px-4">{isAr ? 'البيانات المنظمة' : 'Schemas'}</th>
-                      <th className="py-3 px-4">{isAr ? 'المشاكل' : 'Issues'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-hairline">
-                    {pages.map((p, idx) => {
-                      const typeLabel = isAr
-                        ? p.pageType === 'home'
-                          ? 'الرئيسية'
-                          : p.pageType === 'article'
-                          ? 'مقال'
-                          : p.pageType === 'category'
-                          ? 'تصنيف'
-                          : 'أخرى'
-                        : p.pageType;
+            return (
+              <div className="editorial-card overflow-hidden">
+                <div className="p-4 bg-surface border-b border-surface-hairline flex items-center justify-between">
+                  <h3 className="text-title-sm font-extrabold text-ink">
+                    {isAr ? 'قائمة الصفحات المفحوصة والمؤشرات التقنية' : 'Crawled URLs & Technical Metrics'}
+                  </h3>
+                  <span className="text-xs font-bold text-ink-muted font-mono">
+                    {pages.length.toLocaleString()} URLs
+                  </span>
+                </div>
 
-                      return (
-                        <tr key={idx} className="hover:bg-gold-tint/10 transition-colors">
-                          <td className="py-3 px-4 max-w-md">
-                            <div className="font-bold text-ink truncate">{p.title || (isAr ? 'بدون عنوان' : 'Untitled')}</div>
-                            <a
-                              href={p.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-mono text-xs text-gold hover:underline flex items-center gap-1 mt-0.5 truncate"
-                            >
-                              <span>{p.url}</span>
-                              <ExternalLink className="w-3 h-3 shrink-0" />
-                            </a>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs font-black ${
-                                p.statusCode === 200
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : p.statusCode >= 300 && p.statusCode < 400
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}
-                            >
-                              {p.statusCode}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-ink-muted border border-surface-hairline">
-                              {typeLabel}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap font-mono text-xs text-ink">
-                            {p.wordCount > 0 ? p.wordCount : '-'}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {p.schemas.length > 0 ? (
-                              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                                {p.schemas.slice(0, 2).join(', ')}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right rtl:text-right ltr:text-left text-body-sm">
+                    <thead className="bg-surface/50 text-ink-muted text-xs font-bold uppercase border-b border-surface-hairline">
+                      <tr>
+                        <th className="py-3 px-4">{isAr ? 'الرابط والعنوان' : 'URL & Title'}</th>
+                        <th className="py-3 px-4">{isAr ? 'الكود' : 'Status'}</th>
+                        <th className="py-3 px-4">{isAr ? 'النوع' : 'Type'}</th>
+                        <th className="py-3 px-4">{isAr ? 'الكلمات' : 'Words'}</th>
+                        <th className="py-3 px-4">{isAr ? 'البيانات المنظمة' : 'Schemas'}</th>
+                        <th className="py-3 px-4">{isAr ? 'المشاكل' : 'Issues'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-hairline">
+                      {paginatedPages.map((p, idx) => {
+                        const typeLabel = isAr
+                          ? p.pageType === 'home'
+                            ? 'الرئيسية'
+                            : p.pageType === 'article'
+                            ? 'مقال'
+                            : p.pageType === 'category'
+                            ? 'تصنيف'
+                            : 'أخرى'
+                          : p.pageType;
+
+                        return (
+                          <tr key={idx} className="hover:bg-gold-tint/10 transition-colors">
+                            <td className="py-3 px-4 max-w-md">
+                              <div className="font-bold text-ink truncate">{p.title || (isAr ? 'بدون عنوان' : 'Untitled')}</div>
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-xs text-gold hover:underline flex items-center gap-1 mt-0.5 truncate"
+                              >
+                                <span>{p.url}</span>
+                                <ExternalLink className="w-3 h-3 shrink-0" />
+                              </a>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-black ${
+                                  p.statusCode === 200
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : p.statusCode >= 300 && p.statusCode < 400
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}
+                              >
+                                {p.statusCode}
                               </span>
-                            ) : (
-                              <span className="text-xs text-ink-muted">-</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            {p.issues.length > 0 ? (
-                              <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                {p.issues.length} {isAr ? 'مشاكل' : 'issues'}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded text-xs font-bold bg-surface text-ink-muted border border-surface-hairline">
+                                {typeLabel}
                               </span>
-                            ) : (
-                              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                <span>{isAr ? 'سليمة' : 'Clean'}</span>
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap font-mono text-xs text-ink">
+                              {p.wordCount > 0 ? p.wordCount : '-'}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {p.schemas.length > 0 ? (
+                                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                  {p.schemas.slice(0, 2).join(', ')}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-ink-muted">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              {p.issues.length > 0 ? (
+                                <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                  {p.issues.length} {isAr ? 'مشاكل' : 'issues'}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  <span>{isAr ? 'سليمة' : 'Clean'}</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Numbered Pagination & Export All Button (Matches User Screenshot Exactly) */}
+                <TablePagination
+                  currentPage={tablePage}
+                  totalPages={totalPagesCount}
+                  onPageChange={setTablePage}
+                  onExportAll={() => exportAllPagesCSV(pages, auditResult?.domain || 'site')}
+                  exportLabel="Export All"
+                  totalItems={pages.length}
+                  pageSize={tablePageSize}
+                  onPageSizeChange={setTablePageSize}
+                />
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

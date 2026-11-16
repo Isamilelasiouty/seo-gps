@@ -308,3 +308,37 @@ export function exportReportCSV(reportData: any, domain: string, scanType: strin
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export function exportAllPagesCSV(pages: any[], domain: string) {
+  if (!pages || pages.length === 0) return;
+  const BOM = '\uFEFF';
+  let csv = 'URL,Status Code,Page Type,Indexable,Title,Title Length,Meta Description,Desc Length,H1,Canonical,Word Count,Schemas,Issues Count\n';
+
+  pages.forEach((p) => {
+    const url = (p.url || '').replace(/"/g, '""');
+    const statusCode = p.statusCode ?? 200;
+    const pageType = (p.pageType || 'article').replace(/"/g, '""');
+    const indexable = p.isIndexable !== false ? 'Yes' : 'No';
+    const title = (p.title || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
+    const titleLength = p.titleLength ?? (p.title ? p.title.length : 0);
+    const description = (p.description || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
+    const descLength = p.descLength ?? (p.description ? p.description.length : 0);
+    const h1 = (p.h1 || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
+    const canonical = (p.canonical || p.url || '').replace(/"/g, '""');
+    const wordCount = p.wordCount ?? 0;
+    const schemas = Array.isArray(p.schemas) ? p.schemas.join('; ').replace(/"/g, '""') : '';
+    const issuesCount = Array.isArray(p.issues) ? p.issues.length : 0;
+
+    csv += `"${url}",${statusCode},"${pageType}","${indexable}","${title}",${titleLength},"${description}",${descLength},"${h1}","${canonical}",${wordCount},"${schemas}",${issuesCount}\n`;
+  });
+
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+  const downloadUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = `SEO_GPS_All_Pages_${domain || 'site'}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(downloadUrl);
+}

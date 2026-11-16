@@ -80,9 +80,12 @@ serve(async (req) => {
       });
       if (robRes.ok) {
         const robTxt = await robRes.text();
-        const sitemapMatches = Array.from(robTxt.matchAll(/Sitemap:\s*(https?:\/\/[^\s\r\n]+)/gi));
+        const sitemapMatches = Array.from(robTxt.matchAll(/Sitemap:\s*([^\s\r\n]+)/gi));
         for (const m of sitemapMatches) {
-          sitemapCandidates.add(m[1].trim());
+          try {
+            const resolved = new URL(m[1].trim(), origin).href;
+            sitemapCandidates.add(resolved);
+          } catch (_) {}
         }
       }
     } catch (_) {}
@@ -325,7 +328,7 @@ serve(async (req) => {
     // 4. Batch Audit Real Pages
     // Deep audit top priority pages (title, description, h1, schemas, issues)
     // while cataloging all discovered pages (up to 5,000) into genuine crawled records
-    const DEEP_AUDIT_LIMIT = 60;
+    const DEEP_AUDIT_LIMIT = 100;
     const priorityUrls = [cleanRoot, ...allDiscoveredUrlsList.filter((u) => u !== cleanRoot)].slice(0, DEEP_AUDIT_LIMIT);
 
     const crawledPages: any[] = [];
@@ -493,6 +496,36 @@ serve(async (req) => {
                 confidence: "medium",
                 status: "persisting",
               });
+            }
+
+            // Image Alt Tags Check
+            const targetHtml = u === cleanRoot ? rootHtml : "";
+            if (targetHtml) {
+              const imgMatches = Array.from(targetHtml.matchAll(/<img\s+([^>]*?)>/gi));
+              let missingAltCount = 0;
+              for (const im of imgMatches) {
+                const attrs = im[1];
+                const altMatch = attrs.match(/\balt=["']([^"']*)["']/i);
+                if (!altMatch || !altMatch[1].trim()) {
+                  missingAltCount++;
+                }
+              }
+              if (missingAltCount > 0) {
+                pageIssues.push({
+                  id: `iss-imgalt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  fingerprint: `fp-imgalt-${u}`,
+                  url: u,
+                  checkId: "image_alt_missing",
+                  title: isAr
+                    ? `يوجد ${missingAltCount} صور بدون نص بديل (Alt Text)`
+                    : `${missingAltCount} images missing Alt attributes`,
+                  title_ar: `يوجد ${missingAltCount} صور بدون نص بديل (Alt Text)`,
+                  title_en: `${missingAltCount} images missing Alt attributes`,
+                  severity: "warning",
+                  confidence: "high",
+                  status: "persisting",
+                });
+              }
             }
           }
 

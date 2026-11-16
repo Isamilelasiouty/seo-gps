@@ -20,6 +20,8 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { buildPageSchemaDetails, SchemaDetail } from '../lib/siteCrawler';
+import { TablePagination } from '../components/TablePagination';
+import { exportAllPagesCSV } from '../lib/reportExporter';
 
 export interface PageRecord {
   url: string;
@@ -331,63 +333,22 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
               </tbody>
             </table>
 
-            {/* Pagination Controls */}
+            {/* Numbered Pagination & Export All Button (Exact User Screenshot Style!) */}
             {filtered.length > 0 && (() => {
               const totalPagesCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-              const startIndex = (currentPage - 1) * pageSize;
-              const endIndex = Math.min(startIndex + pageSize, filtered.length);
+              const domain = pages[0]?.url ? new URL(pages[0].url).hostname : 'site';
 
               return (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-surface border-t border-surface-hairline text-xs text-ink-muted">
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {isAr
-                        ? `عرض ${startIndex + 1} - ${endIndex} من أصل ${filtered.length.toLocaleString()} صفحة`
-                        : `Showing ${startIndex + 1} - ${endIndex} of ${filtered.length.toLocaleString()} pages`}
-                    </span>
-                    <span className="text-surface-hairline">|</span>
-                    <div className="flex items-center gap-1">
-                      <span>{isAr ? 'لكل صفحة:' : 'Per page:'}</span>
-                      <select
-                        value={pageSize}
-                        onChange={(e) => {
-                          setPageSize(Number(e.target.value));
-                          setCurrentPage(1);
-                        }}
-                        className="bg-white border border-surface-hairline rounded px-1.5 py-0.5 text-ink font-semibold"
-                      >
-                        <option value={25}>25</option>
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                        <option value={250}>250</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {totalPagesCount > 1 && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="px-2.5 py-1 rounded bg-white border border-surface-hairline text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold-tint/40 transition-colors"
-                      >
-                        {isAr ? 'السابق' : 'Previous'}
-                      </button>
-
-                      <span className="px-2 font-mono font-bold text-ink">
-                        {currentPage} / {totalPagesCount}
-                      </span>
-
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}
-                        disabled={currentPage === totalPagesCount}
-                        className="px-2.5 py-1 rounded bg-white border border-surface-hairline text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold-tint/40 transition-colors"
-                      >
-                        {isAr ? 'التالي' : 'Next'}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <TablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPagesCount}
+                  onPageChange={setCurrentPage}
+                  onExportAll={() => exportAllPagesCSV(filtered, domain)}
+                  exportLabel="Export All"
+                  totalItems={filtered.length}
+                  pageSize={pageSize}
+                  onPageSizeChange={setPageSize}
+                />
               );
             })()}
           </div>
