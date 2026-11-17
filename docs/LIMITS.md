@@ -24,3 +24,19 @@
 | **Crawl Size per Project** | 2,000 URLs / run | Move crawler from GitHub Actions to a dedicated VPS / Railway container ($5/mo) if monitoring enterprise sites (> 50,000 URLs). |
 | **Email Volume** | 3,000 / month | Upgrade Resend to Pro ($20/mo) for 50,000 emails/month. |
 | **JavaScript Rendering** | Static HTML only | Integrate Headless Chrome (e.g. Browserless / Playwright worker) if client-side hydration is required. |
+
+---
+
+## 3. 1,000,000-Page Scale Operational Limits & System Guardrails
+
+To support deep audits scaling from small blogs up to 1,000,000-page enterprise portals without crashing or exceeding system resources, SEO GPS implements strict guardrails:
+
+| Parameter | Guardrail Limit | Purpose & Behavior |
+|---|---|---|
+| **Max Page Size** | 5 MB | HTTP streaming cutoff prevents memory exhaustion on large binary or unminified payloads. |
+| **Sitemap Recursion** | Depth $\le$ 3 | Traverses nested sitemap index hierarchies while strictly preventing cyclic loop attacks. |
+| **Frontier Leasing** | 50–100 URLs / batch | Leased via `FOR UPDATE SKIP LOCKED` with a 10-minute expiry window for crash resiliency. |
+| **Per-Host Politeness** | 250 ms delay / 5 workers | Respects host capacity and obeys RFC 9309 `robots.txt` crawl delays. |
+| **Similarity Memory** | MinHash LSH (64 perms, 8 bands) | Near-duplicate detection runs in sub-linear $O(1)$ lookup time instead of $O(n^2)$ pairwise memory explosion. |
+| **Arabic NLP Indexing** | Sparse CSR Matrices | TF-IDF cannibalization analysis utilizes sparse matrices and scikit-learn nearest neighbors. |
+| **Crawl Truncation** | Explicit `truncated: true` | When quota or runner timeout (e.g. 6-hour GitHub Actions job) is reached, discovered URLs are preserved as `discovered_not_crawled` without inventing metrics. |

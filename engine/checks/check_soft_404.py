@@ -22,7 +22,7 @@ class Soft404Check(BaseCheck):
         if current_snapshot.get("status_code") != 200:
             return issues
 
-        if current_snapshot.get("is_soft_404"):
+        if current_snapshot.get("is_soft_404") or current_snapshot.get("soft_404_flag"):
             url = current_snapshot.get("url", "")
             evidence = current_snapshot.get("soft_404_evidence") or {"reason": "Matches soft 404 error template"}
             issues.append(

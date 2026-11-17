@@ -5,6 +5,38 @@ All notable changes to the **SEO GPS** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-18
+### Added
+- **Semrush-Grade 1,000,000-Page Engine Architecture**:
+  - **Persistent Frontier & Sharded Leasing**: Scalable `crawl_frontier` queue supporting PostgreSQL RLS & `FOR UPDATE SKIP LOCKED` batch leasing (with SQLite fallback) enabling multi-worker distributed crawling, resume-after-crash, and zero double-crawls.
+  - **Fast Lexbor DOM Parser (`engine/parser.py`)**: High-performance C-level Lexbor HTML parser (`LexborHTMLParser`). Safely strips `<script>`, `<style>`, `<noscript>`, `<template>`, and HTML comments from headings, extracts uncorrupted single-quote apostrophes from meta descriptions, extracts clean main content text, JSON-LD schemas, and soft 404 patterns.
+  - **SSRF & URL Normalization Suite (`engine/url_utils.py`)**: RFC-compliant normalization (lowercasing scheme/host, port stripping, query sorting, tracking parameter stripping: `utm_*`, `gclid`, `fbclid`), loopback/private/metadata IP protection, and multi-domain/port internal URL resolution.
+  - **Typed Data Contract (`engine/models.py`)**: Strict typing for `PageSnapshot`, `LinkItem`, `AssetItem`, `HreflangEntry`, and `RedirectHop` with full backward compatibility and `.to_dict()` serialization.
+  - **Scalable Arabic NLP & Near-Duplicate Clustering (`engine/similarity.py`)**: Unified Arabic text normalizer (Alef/Hamza, Taa Marbuta, Yaa, diacritics, tatweel), MinHash LSH (64 perms, 8 bands) for sub-linear near-duplicate detection, and TF-IDF cannibalization analysis.
+  - **Semrush-Calibrated Proportional Health Scoring (`engine/scoring.py`)**: Non-linear logarithmic/proportional scoring based on percentage of affected pages (`SEVERITY_WEIGHTS = {"critical": 1.0, "warning": 0.35, "notice": 0.08}`) with per-check penalty ceiling (3.5 pts max) preventing false catastrophic drops.
+  - **Internal PageRank Engine (`engine/graph.py`)**: Power iteration link equity distribution (damping 0.85, 20 iterations, 0-100 scale) for identifying deep/orphan pages and link equity leaks.
+  - **Truthful Status Invariant Checker (`engine/verify.py`)**: Global reconciliation check `total_discovered == total_crawled + total_skipped + blocked_by_robots + total_failed + total_pending` with automated `--live-sample N` ground truth verification.
+  - **Validation Test Gates**:
+    - `test_contract.py`: AST validation of check plugin field access against `PageSnapshot`.
+    - `test_accuracy.py`: Ground truth tests for apostrophe retention, comment/script heading filtering, soft 404 detection, unreciprocated hreflangs, and canonical redirects.
+    - `test_resumability.py`: Batch leasing, lease timeouts, zero double-crawling, and resume capability.
+  - **Database Migration**: `supabase/migrations/20261118000000_resumable_frontier.sql` adding `crawl_frontier` with status enums (`pending`, `leased`, `crawled`, `failed`, `skipped`, `blocked_by_robots`), indices, and `lease_frontier_batch` RPC.
+
+### Changed
+- **Zero Data Fabrication & Transparency**:
+  - Replaced fake 200 HTTP statuses, fake 350 word counts, and slug-derived titles for un-crawled discovered URLs with honest `discovered_not_crawled` / `pending` status records (`statusCode: 0`, `wordCount: 0`, `schemas: []`).
+  - Transparent sample disclosure: UI and Edge functions prominently flag capped audits with `truncated: true` and display representative sample notices ("Deep-audited first N pages out of N discovered URLs").
+  - Frontend Pages Explorer and Quick Audit render un-crawled pages with slate `Discovered` / `مستكشفة` status and `-` placeholders.
+  - Upgraded crawler with 5MB streaming response cap, recursive XML sitemap index processing (depth <= 3), and RFC 9309 robots.txt compliance.
+  - Replaced $O(n^2)$ pairwise clustering in `engine/analytics/cluster.py` with scalable sparse TF-IDF and NearestNeighbors.
+  - Loaded actual previous scan snapshots from storage in `engine/main.py` instead of passing empty baseline diffs.
+  - Removed hardcoded `[:10]` worker truncation in `.github/workflows/dispatcher.yml`.
+
+### Removed
+- Removed 1.45 MB bundled mock dataset `frontend/src/lib/techhouse_real_crawl.json`, slashing production JS bundle size from 2,275 kB to 825 kB.
+- Removed domain-based mock intercepts (`techhouseksa.com` fixture redirects) in frontend crawler.
+- Removed untrusted third-party CORS proxies (`corsproxy.io`, `api.allorigins.win`).
+
 ## [2.0.0] - 2026-10-31
 ### Added
 - **First-Scan Baseline Report**: Comprehensive 7-section Site Report snapshot for the initial crawl, serving as permanent reference point for tracking persisting vs. new issues.

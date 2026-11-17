@@ -3,10 +3,11 @@ Local-First Storage Engine for SEO GPS with SQLite & PostgreSQL Parity.
 Author: Ismail El Asiouty
 """
 import json
+import hashlib
 import os
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -30,6 +31,28 @@ class LocalStorage:
     def _init_db(self):
         with self.get_connection() as conn:
             conn.executescript("""
+            CREATE TABLE IF NOT EXISTS crawl_frontier (
+                id TEXT PRIMARY KEY,
+                scan_id TEXT NOT NULL,
+                project_id TEXT NOT NULL,
+                url_hash TEXT NOT NULL,
+                url TEXT NOT NULL,
+                depth INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'link',
+                found_on TEXT,
+                state TEXT NOT NULL DEFAULT 'pending',
+                lease_until TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                status_code INTEGER,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(scan_id, url_hash)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_frontier_lease ON crawl_frontier(scan_id, state, lease_until);
+            CREATE INDEX IF NOT EXISTS idx_frontier_lookup ON crawl_frontier(scan_id, url_hash);
+
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -444,6 +467,87 @@ class LocalStorage:
                 item["is_indexable"] = bool(item.get("is_indexable"))
                 res.append(item)
             return res
+
+# -------------------------------------------------------------------------
+    # Crawl Frontier & Resumable Sharding (Blueprint §2.1)
+    # -------------------------------------------------------------------------
+    def enqueue_frontier_url(
+        self,
+        scan_id: str,
+        project_id: str,
+        url: str,
+        depth: int = 0,
+        source: str = "link",
+        found_on: Optional[str] = None
+    ) -> bool:
+        url_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()
+        now = datetime.now().isoformat()
+        u_id = str(uuid.uuid4())
+        with self.get_connection() as conn:
+            try:
+                conn.execute("""
+                INSERT INTO crawl_frontier (id, scan_id, project_id, url_hash, url, depth, source, found_on, state, attempts, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+                ON CONFLICT(scan_id, url_hash) DO NOTHING;
+                """, (u_id, scan_id, project_id, url_hash, url, depth, source, found_on, now, now))
+                return True
+            except Exception:
+                return False
+
+    def lease_frontier_batch(
+        self,
+        scan_id: str,
+        batch_size: int = 5,
+        lease_seconds: int = 120
+    ) -> List[Dict[str, Any]]:
+        now = datetime.now()
+        now_iso = now.isoformat()
+        lease_until_iso = (now + timedelta(seconds=lease_seconds)).isoformat()
+        with self.get_connection() as conn:
+            rows = conn.execute("""
+            SELECT id, url, depth, source, found_on, attempts
+            FROM crawl_frontier
+            WHERE scan_id = ?
+              AND (state = 'pending' OR (state = 'leased' AND lease_until < ?))
+              AND attempts < 3
+            ORDER BY depth ASC, created_at ASC
+            LIMIT ?;
+            """, (scan_id, now_iso, batch_size)).fetchall()
+
+            leased = []
+            for r in rows:
+                item = dict(r)
+                conn.execute("""
+                UPDATE crawl_frontier
+                SET state = 'leased', lease_until = ?, attempts = attempts + 1, updated_at = ?
+                WHERE id = ?;
+                """, (lease_until_iso, now_iso, item["id"]))
+                leased.append(item)
+            return leased
+
+    def update_frontier_state(
+        self,
+        item_id: str,
+        state: str,
+        status_code: Optional[int] = None,
+        error_message: Optional[str] = None
+    ):
+        now = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute("""
+            UPDATE crawl_frontier
+            SET state = ?, status_code = ?, error_message = ?, updated_at = ?
+            WHERE id = ?;
+            """, (state, status_code, error_message, now, item_id))
+
+    def save_page_snapshot(self, snapshot: Any):
+        if hasattr(snapshot, "to_dict"):
+            p = snapshot.to_dict()
+        else:
+            p = snapshot
+        scan_id = p.get("scan_id") or "scan-latest"
+        project_id = p.get("project_id") or "proj-latest"
+        self.save_scan_urls(scan_id, project_id, [p])
 
     # -------------------------------------------------------------------------
     # Issues & Events

@@ -1,4 +1,3 @@
-import techhouseRealData from './techhouse_real_crawl.json';
 import { supabase } from './supabase';
 /**
  * SEO GPS High-Performance Web & WordPress Crawler Engine
@@ -26,6 +25,7 @@ export interface SchemaDetail {
 export interface CrawledPage {
   url: string;
   statusCode: number;
+  crawlStatus?: 'crawled' | 'discovered_not_crawled' | 'pending' | 'blocked_by_robots' | 'failed' | 'skipped';
   finalUrl?: string;
   responseTimeMs: number;
   source: 'sitemap' | 'internal_link' | 'root' | 'imported' | 'archive_link' | 'pagination_page';
@@ -100,6 +100,7 @@ export interface SiteReportSummary {
   total_discovered: number;
   total_crawled: number;
   total_skipped: number;
+  discovered_not_crawled?: number;
   critical_count: number;
   warning_count: number;
   notice_count: number;
@@ -109,6 +110,7 @@ export interface SiteReportSummary {
     not_found_404: number;
     server_error_5xx: number;
     blocked_unverified: number;
+    discovered_not_crawled?: number;
   };
 }
 
@@ -189,6 +191,8 @@ export interface FullAuditResult {
   success: boolean;
   domain: string;
   rootUrl: string;
+  truncated?: boolean;
+  sampleNotice?: string;
   summary: SiteReportSummary;
   pages: CrawledPage[];
   issues: IssueRecord[];
@@ -480,32 +484,16 @@ export function buildPageSchemaDetails(
 
   return fallbackSchemas.map((stype) => {
     if (stype === 'Organization') {
-      const isStagingDomain = pageUrl.includes('test.') || rootDomain.includes('techhouseksa');
+      const orgBrand = rootDomain.replace(/^www\./, '').split('.')[0];
+      const displayName = orgBrand.charAt(0).toUpperCase() + orgBrand.slice(1);
+      const isStagingDomain = pageUrl.includes('test.') || pageUrl.includes('staging.');
       const rawJson = JSON.stringify(
         {
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'techhouseksa',
-          url: isStagingDomain ? 'https://test.techhouseksa.com/' : `https://${rootDomain}/`,
-          logo: isStagingDomain
-            ? 'https://test.techhouseksa.com/images/logo/logo.webp'
-            : `https://${rootDomain}/images/logo/logo.webp`,
-          contactPoint: [
-            {
-              '@type': 'ContactPoint',
-              telephone: '+966 54 718 4428',
-              contactType: 'Customer Service',
-              areaServed: 'KSA',
-              availableLanguage: 'Arabic',
-            },
-            {
-              '@type': 'ContactPoint',
-              telephone: '+966 54 718 4428',
-              contactType: 'Customer Service',
-              areaServed: 'KSA',
-              availableLanguage: 'English',
-            },
-          ],
+          name: displayName,
+          url: isStagingDomain ? `https://${rootDomain}/` : `https://${rootDomain}/`,
+          logo: `https://${rootDomain}/logo.png`,
         },
         null,
         2
@@ -545,12 +533,10 @@ export function buildPageSchemaDetails(
             'خدمات تسويق رقمي متكاملة تشمل تحسين محركات البحث، إدارة وسائل التواصل الاجتماعي، التسويق بالمحتوى، التسويق عبر المؤثرين، إعلانات الدفع مقابل النقر، وتصميم وتطوير المواقع الإلكترونية للشركات في المملكة العربية السعودية.',
           provider: {
             '@type': 'Organization',
-            name: 'بيت التكنولوجيا',
-            alternateName: 'Tech House',
+            name: rootDomain.replace(/^www\./, '').split('.')[0],
+            alternateName: rootDomain,
             url: `https://${rootDomain}`,
-            logo: `https://${rootDomain}/images/logo/logo.webp`,
-            telephone: '+966547184428',
-            email: 'info@techhouseksa.com',
+            logo: `https://${rootDomain}/logo.png`,
           },
         },
         null,
@@ -709,403 +695,6 @@ export function buildPageSchemaDetails(
  * ensuring professional metrics even when in-browser cross-origin requests are blocked by browser CORS restrictions.
  */
 
-export function getTechhouseAuditResult(
-  cleanRoot: string,
-  isAr: boolean,
-  targetYear: number = 2027
-): FullAuditResult {
-  const root = cleanRoot.replace(/\/+$/, '') || 'https://techhouseksa.com';
-
-  const crawledPages: CrawledPage[] = (techhouseRealData as any[]).map((p: any) => {
-    const pageIssues: IssueRecord[] = [];
-    const titleLen = (p.title || '').length;
-
-    // Check long title (>65)
-    if (titleLen > 65) {
-      pageIssues.push({
-        id: `iss-tl-${p.url.substring(p.url.lastIndexOf('/') + 1)}`,
-        fingerprint: `fp-tl-${p.url}`,
-        url: p.url,
-        checkId: 'title_too_long',
-        title: isAr
-          ? `عنوان الصفحة طويل (${titleLen} حرفاً - الموصى به أقل من 65)`
-          : `Title tag exceeds recommended limit (${titleLen} chars > 65)`,
-        title_ar: `عنوان الصفحة طويل (${titleLen} حرفاً - الموصى به أقل من 65)`,
-        title_en: `Title tag exceeds recommended limit (${titleLen} chars > 65)`,
-        severity: 'warning',
-        confidence: 'high',
-        firstSeen: '2026-11-01T00:00:00.000Z',
-        lastSeen: new Date().toISOString(),
-        daysOpen: 1,
-        isBaseline: true,
-        status: 'persisting',
-        details: isAr
-          ? 'طول عنوان الصفحة يتجاوز الحد المثالي لمحركات البحث (65 حرفاً)، مما قد يؤدي لاقتطاعه في نتائج Google.'
-          : 'Title tag length exceeds SERP pixel limit (~65 chars) causing truncation.',
-        details_ar: 'طول عنوان الصفحة يتجاوز الحد المثالي لمحركات البحث (65 حرفاً)، مما قد يؤدي لاقتطاعه في نتائج Google.',
-        details_en: 'Title tag length exceeds SERP pixel limit (~65 chars) causing truncation.',
-        suggestion: {
-          recommended_length: '50-60 chars',
-          current_length: titleLen,
-          current_title: p.title,
-        },
-      });
-    }
-
-    // Check internal link 301 redirect if on /من-نحن
-    if (p.url.includes('%D9%85%D9%86-%D9%86%D8%AD%D9%86')) {
-      pageIssues.push({
-        id: `iss-redir-about`,
-        fingerprint: `fp-redir-about`,
-        url: p.url,
-        checkId: 'redirect_status',
-        title: isAr
-          ? 'رابط داخلي يحتوي على تحويل 301 (يشير إلى www.techhouseksa.com/اتصل-بنا)'
-          : 'Internal link in content has 301 redirect (points to www.techhouseksa.com/اتصل-بنا)',
-        title_ar: 'رابط داخلي يحتوي على تحويل 301 (يشير إلى www.techhouseksa.com/اتصل-بنا)',
-        title_en: 'Internal link in content has 301 redirect (points to www.techhouseksa.com/اتصل-بنا)',
-        severity: 'warning',
-        confidence: 'high',
-        firstSeen: '2026-11-01T00:00:00.000Z',
-        lastSeen: new Date().toISOString(),
-        daysOpen: 1,
-        isBaseline: true,
-        status: 'persisting',
-        details: isAr
-          ? 'يوجد رابط داخلي بنص (حوّل أفكارك إلى واقع رقمي احترافي) يوجه الزائر لرابط www ويحدث تحويل 301. يفضل تعديله للرابط المباشر.'
-          : 'Internal content link points to www host causing an unnecessary 301 redirect hop.',
-        suggestion: {
-          source: p.url,
-          broken_link: 'https://www.techhouseksa.com/%D8%A7%D8%AA%D8%B5%D9%84-%D8%A8%D9%86%D8%A7',
-          target_url: 'https://techhouseksa.com/%D8%A7%D8%AA%D8%B5%D9%84-%D8%A8%D9%86%D8%A7',
-          anchor: 'حوّل أفكارك إلى واقع رقمي احترافي',
-        },
-      });
-    }
-
-    const internalLinks = (p.internalLinks || []).map((l: any) => ({
-      url: l.url,
-      anchor: l.anchor || (isAr ? 'رابط داخل المحتوى' : 'In-content link'),
-      statusCode: l.url.includes('www.techhouseksa.com') ? 301 : 200,
-      isBroken: false,
-      inContent: true,
-    }));
-
-    const pageSchemas = (p.schemas || []).filter((s: string) =>
-      ['Organization', 'Service', 'Article', 'BlogPosting', 'BreadcrumbList', 'FAQPage', 'WebPage', 'WebSite', 'LocalBusiness', 'Product'].includes(s)
-    );
-
-    const schemaDetails = p.schemaDetails && p.schemaDetails.length > 0
-      ? p.schemaDetails
-      : buildPageSchemaDetails(p.url, p.title || '', p.description || '', pageSchemas, isAr);
-
-    return {
-      url: p.url,
-      statusCode: 200,
-      finalUrl: p.url,
-      responseTimeMs: p.duration || 185,
-      source: 'sitemap' as const,
-      foundOn: `${root}/sitemap.xml`,
-      title: p.title || '',
-      titleLength: (p.title || '').length,
-      description: p.description || '',
-      descLength: (p.description || '').length,
-      canonical: p.canonical || p.url,
-      h1: p.h1 || '',
-      h1Tags: p.h1 ? [p.h1] : [],
-      robots: p.robots || 'index, follow',
-      isIndexable: true,
-      schemas: pageSchemas.length > 0 ? pageSchemas : ['Organization', 'Service'],
-      schemaDetails,
-      wordCount: p.wordCount || 420,
-      pageType: classifyPageType(p.url, p.title || ''),
-      issues: pageIssues,
-      internalLinks,
-    };
-  });
-
-  const cannibalizationClusters: CannibalizationCluster[] = [
-    {
-      topic: isAr ? 'أفضل شركة سيو في السعودية مقابل الرياض' : 'Best SEO Company in Saudi vs Riyadh',
-      topic_ar: 'أفضل شركة سيو في السعودية مقابل الرياض',
-      topic_en: 'Best SEO Company in Saudi vs Riyadh',
-      similarity: 83,
-      similarityScore: '83%',
-      conflictingKeywords: isAr ? ['أفضل', 'سيو', 'محركات', 'البحث', 'لتحسين'] : ['best', 'seo', 'search', 'engines', 'optimization'],
-      masterUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D9%82%D8%A7%D9%84%D8%A7%D8%AA/%D8%A3%D9%81%D8%B6%D9%84-%D8%B4%D8%B1%D9%83%D8%A9-%D8%B3%D9%8A%D9%88-%D9%81%D9%8A-%D8%A7%D9%84%D8%B3%D8%B9%D9%88%D8%AF%D9%8A%D8%A9',
-      masterTitle: 'أفضل شركة سيو في السعودية لتحسين محركات البحث',
-      candidateUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D9%82%D8%A7%D9%84%D8%A7%D8%AA/%D8%B4%D8%B1%D9%83%D8%A9-%D8%B3%D9%8A%D9%88-%D9%81%D9%8A-%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6',
-      candidateTitle: 'أفضل شركة سيو في الرياض لتحسين محركات البحث',
-      signals: isAr
-        ? 'تطابق بنسبة 83% في الكلمات الدلالية بين المقالين، مما يشتت قوة الصفحة في نتائج البحث.'
-        : '83% semantic overlap between articles, competing for the same target keywords.',
-      recommendation: isAr
-        ? 'يوصى بتوسيع مقال السعودية ليكون الدليل المرجعي الرئيسي وربط مقال الرياض به بشكل هرمي.'
-        : 'Consolidate or differentiate geo-targeting to eliminate SERP ranking competition.',
-      signals_ar: 'تطابق بنسبة 83% في الكلمات الدلالية بين المقالين، مما يشتت قوة الصفحة في نتائج البحث.',
-      signals_en: '83% semantic overlap between articles, competing for the same target keywords.',
-      recommendation_ar: 'يوصى بتوسيع مقال السعودية ليكون الدليل المرجعي الرئيسي وربط مقال الرياض به بشكل هرمي.',
-      recommendation_en: 'Consolidate or differentiate geo-targeting to eliminate SERP ranking competition.',
-    },
-    {
-      topic: isAr ? 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية مقابل طلاب العرب' : 'Social Media Management - Saudi Students vs Arab Students',
-      topic_ar: 'إدارة وسائل التواصل الاجتماعي - طلاب السعودية مقابل طلاب العرب',
-      topic_en: 'Social Media Management - Saudi Students vs Arab Students',
-      similarity: 71,
-      similarityScore: '71%',
-      conflictingKeywords: isAr ? ['وسائل', 'إدارة', 'التواصل', 'الاجتماعي'] : ['social', 'media', 'management'],
-      masterUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%B7%D9%84%D8%A7%D8%A8-%D8%A7%D9%84%D8%B3%D8%B9%D9%88%D8%AF%D9%8A%D8%A9-%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D9%88%D8%B3%D8%A7%D8%A6%D9%84-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%B5%D9%84-%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A',
-      masterTitle: 'طلاب السعودية وبيت التكنولوجيا | إدارة وسائل التواصل الاجتماعي',
-      candidateUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%B7%D9%84%D8%A7%D8%A8-%D8%A7%D9%84%D8%B9%D8%B1%D8%A8-%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D9%88%D8%B3%D8%A7%D8%A6%D9%84-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%B5%D9%84-%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A',
-      candidateTitle: 'طلاب العرب بيت التكنولوجيا | إدارة وسائل التواصل الاجتماعي',
-      signals: isAr ? 'تشابه بنسبة 71% في العنوان والاستهداف' : '71% title and keyword overlap',
-      recommendation: isAr ? 'تخصيص المحتوى وإبراز الفروقات الدقيقة بين دراستي الحالة' : 'Differentiate target case studies to avoid duplicate cannibalization',
-      signals_ar: 'تشابه بنسبة 71% في العنوان والاستهداف',
-      signals_en: '71% title and keyword overlap',
-      recommendation_ar: 'تخصيص المحتوى وإبراز الفروقات الدقيقة بين دراستي الحالة',
-      recommendation_en: 'Differentiate target case studies to avoid duplicate cannibalization',
-    },
-    {
-      topic: isAr ? 'المصرية الخليجية للاستشارات التعليمية' : 'Egyptian Gulf Educational Consulting',
-      topic_ar: 'المصرية الخليجية للاستشارات التعليمية',
-      topic_en: 'Egyptian Gulf Educational Consulting',
-      similarity: 100,
-      similarityScore: '100%',
-      conflictingKeywords: isAr ? ['المصرية', 'الخليجية', 'للاستشارات', 'التعليمية'] : ['egyptian', 'gulf', 'educational', 'consulting'],
-      masterUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%A7%D9%84%D9%85%D8%B5%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%AE%D9%84%D9%8A%D8%AC%D9%8A%D8%A9-%D9%84%D9%84%D8%A7%D8%B3%D8%AA%D8%B4%D8%A7%D8%B1%D8%A7%D8%AA-%D8%A7%D9%84%D8%AA%D8%B9%D9%84%D9%8A%D9%85%D9%8A%D8%A9-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A',
-      masterTitle: 'المصرية الخليجية للاستشارات التعليمية مع بيت التكنولوجيا',
-      candidateUrl: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%A7%D9%84%D9%85%D8%B5%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%AE%D9%84%D9%8A%D8%AC%D9%8A%D8%A9-%D9%84%D9%84%D8%A7%D8%B3%D8%AA%D8%B4%D8%A7%D8%B1%D8%A7%D8%AA-%D8%A7%D9%84%D8%AA%D8%B9%D9%84%D9%8A%D9%85%D9%8A%D8%A9-%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D9%88%D8%B3%D8%A7%D8%A6%D9%84-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%B5%D9%84-%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A',
-      candidateTitle: 'المصرية الخليجية للاستشارات التعليمية مع بيت التكنولوجيا إدارة وسائل التواصل الاجتماعي',
-      signals: isAr ? 'تطابق كامل بنسبة 100% في الكلمات الدلالية الأساسية' : '100% keyword overlap on core terms',
-      recommendation: isAr ? 'دمج الخدمتين في صفحة مشروع شاملة أو تمييز العنوان بوضوح' : 'Consolidate into single comprehensive portfolio entry or distinct title',
-      signals_ar: 'تطابق كامل بنسبة 100% في الكلمات الدلالية الأساسية',
-      signals_en: '100% keyword overlap on core terms',
-      recommendation_ar: 'دمج الخدمتين في صفحة مشروع شاملة أو تمييز العنوان بوضوح',
-      recommendation_en: 'Consolidate into single comprehensive portfolio entry or distinct title',
-    },
-  ];
-
-  const allIssues: IssueRecord[] = [];
-  crawledPages.forEach((p) => allIssues.push(...p.issues));
-
-  cannibalizationClusters.forEach((c, idx) => {
-    allIssues.push({
-      id: `iss-cannibal-${idx}`,
-      fingerprint: `fp-cannibal-${c.candidateUrl}`,
-      url: c.candidateUrl,
-      checkId: 'content_cannibalization',
-      title: isAr
-        ? `تنافس كلمات دلالية: ${c.candidateTitle} ينافس ${c.masterTitle}`
-        : `Keyword Cannibalization: ${c.candidateTitle} conflicts with ${c.masterTitle}`,
-      title_ar: `تنافس كلمات دلالية: ${c.candidateTitle} ينافس ${c.masterTitle}`,
-      title_en: `Keyword Cannibalization: ${c.candidateTitle} conflicts with ${c.masterTitle}`,
-      severity: 'warning',
-      confidence: 'high',
-      firstSeen: '2026-11-01T00:00:00.000Z',
-      lastSeen: new Date().toISOString(),
-      daysOpen: 1,
-      isBaseline: true,
-      status: 'persisting',
-      details: c.signals,
-      details_ar: c.signals_ar,
-      details_en: c.signals_en,
-      suggestion: {
-        master_url: c.masterUrl,
-        candidate_url: c.candidateUrl,
-        similarity: c.similarity,
-        recommendation: c.recommendation,
-      },
-    });
-  });
-
-  const siteReport: SiteReportData = {
-    scan_id: `scan-${Date.now()}`,
-    project_id: 'techhouseksa.com',
-    domain: 'techhouseksa.com',
-    root_url: `${root}/`,
-    is_baseline: true,
-    created_at: new Date().toISOString(),
-    summary: {
-      health_score: 92,
-      total_discovered: crawledPages.length,
-      total_crawled: crawledPages.length,
-      total_skipped: 0,
-      critical_count: 0,
-      warning_count: allIssues.length,
-      notice_count: 5,
-      status_distribution: {
-        ok_200: crawledPages.length,
-        redirect_3xx: 1,
-        not_found_404: 0,
-        server_error_5xx: 0,
-        blocked_unverified: 0,
-      },
-    },
-    top_fixes: [
-      {
-        priority_score: 92,
-        title: isAr ? 'حل تنافس الكلمات بين مقالات السيو (السعودية vs الرياض)' : 'Resolve SEO Articles Keyword Cannibalization',
-        url: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D9%82%D8%A7%D9%84%D8%A7%D8%AA/%D8%B4%D8%B1%D9%83%D8%A9-%D8%B3%D9%8A%D9%88-%D9%81%D9%8A-%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6',
-        recommendation: isAr
-          ? 'توسيع مقال السعودية ليكون الدليل الشامل وربط مقال الرياض به لتحسين تصدر الكلمات الرئيسية في Google.'
-          : 'Consolidate overlapping articles or configure cross-linking to establish clear topic hierarchy.',
-        action_sentence: isAr ? 'إعادة ضبط الاستهداف والربط الهرمي بين المقالين' : 'Refine search intent and internal links between conflicting guides.',
-      },
-      {
-        priority_score: 88,
-        title: isAr ? 'تعديل الرابط الداخلي في صفحة (من نحن) لإزالة تحويل 301' : 'Update Internal Link in About Page to Eliminate 301',
-        url: 'https://techhouseksa.com/%D9%85%D9%86-%D9%86%D8%AD%D9%86',
-        recommendation: isAr
-          ? 'تعديل الرابط بنص (حوّل أفكارك إلى واقع رقمي احترافي) ليشير مباشرة إلى https://techhouseksa.com/اتصل-بنا بدلاً من www'
-          : 'Update link anchor to point directly to root https://techhouseksa.com/اتصل-بنا instead of www hop.',
-        action_sentence: isAr ? 'تعديل الرابط في كود الصفحة لإزالة قفزة التحويل' : 'Change destination href in template to avoid 301 redirect.',
-      },
-      {
-        priority_score: 82,
-        title: isAr ? 'تحسين طول عنوان الصفحة (صحيفة أصداء الخليج)' : 'Optimize Title Tag Length on Ashdaa Al Khaleej',
-        url: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%B5%D8%AD%D9%8A%D9%81%D8%A9-%D8%A3%D8%B5%D8%AF%D8%A7%D8%A1-%D8%A7%D9%84%D8%AE%D9%84%D9%8A%D8%AC-%D9%85%D9%88%D9%82%D8%B9-%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A',
-        recommendation: isAr
-          ? 'تقصير العنوان من 66 حرفاً إلى أقل من 60 حرفاً لمنع اقتطاعه في شاشات الجوال ونتائج البحث.'
-          : 'Shorten title from 66 characters to under 60 characters to fit SERP display boundaries.',
-        action_sentence: isAr ? 'إعادة صياغة العنوان ليكون مختصراً وجذاباً' : 'Rewrite title tag to fit within standard character limits.',
-      },
-      {
-        priority_score: 80,
-        title: isAr ? 'تحسين طول عنوان الصفحة (استثمر فى المملكة)' : 'Optimize Title Tag Length on Invest in Kingdom',
-        url: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%A7%D8%B3%D8%AA%D8%AB%D9%85%D8%B1-%D9%81%D9%89-%D8%A7%D9%84%D9%85%D9%85%D9%84%D9%83%D8%A9-%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D9%88%D8%B3%D8%A7%D8%A6%D9%84-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%B5%D9%84-%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A',
-        recommendation: isAr
-          ? 'تقصير العنوان من 68 حرفاً إلى أقل من 60 حرفاً للظهور الكامل في محركات البحث.'
-          : 'Reduce title from 68 characters to preserve CTR in search results.',
-        action_sentence: isAr ? 'تعديل العنوان إلى صيغة مركزة' : 'Condense title to under 60 characters.',
-      },
-      {
-        priority_score: 75,
-        title: isAr ? 'حل تنافس الكلمات بين مشروعي (طلاب السعودية) و (طلاب العرب)' : 'Resolve Conflict between Saudi Students & Arab Students',
-        url: 'https://techhouseksa.com/%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%8A%D8%B9/%D8%B7%D9%84%D8%A7%D8%A8-%D8%A7%D9%84%D8%B9%D8%B1%D8%A8-%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D9%88%D8%B3%D8%A7%D8%A6%D9%84-%D8%A7%D9%84%D8%AA%D9%88%D8%A7%D8%B5%D9%84-%D8%A7%D9%84%D8%A7%D8%AC%D8%AA%D9%85%D8%A7%D8%B9%D9%8A',
-        recommendation: isAr
-          ? 'تمييز العناوين بوضوح وإبراز تفاصيل كل مشروع لتجنب التشابه بنسبة 71%.'
-          : 'Differentiate titles and focus areas to resolve 71% similarity.',
-        action_sentence: isAr ? 'تخصيص نصوص العناوين والوصف لكل دراسة حالة' : 'Customize titles and meta descriptions for distinct branding.',
-      },
-    ],
-    section_status: {
-      total_404: 0,
-      false_404_count: 0,
-      true_dead_count: 0,
-      soft_404_count: 0,
-      false_404_ratio: '0%',
-      false_404_items: [],
-      slug_recovery_items: [],
-      true_dead_items: [],
-      soft_404_items: [],
-    },
-    section_redirects: {
-      total_redirects: 1,
-      temporary_302_count: 0,
-      chains_count: 0,
-      loops_count: 0,
-      legacy_groups: [],
-      chains: [],
-      temporary_redirects: [
-        {
-          url: 'https://www.techhouseksa.com/%D8%A7%D8%AA%D8%B5%D9%84-%D8%A8%D9%86%D8%A7',
-          target: 'https://techhouseksa.com/%D8%A7%D8%AA%D8%B5%D9%84-%D8%A8%D9%86%D8%A7',
-          code: 301,
-          source: 'https://techhouseksa.com/%D9%85%D9%86-%D9%86%D8%AD%D9%86',
-          anchor: 'حوّل أفكارك إلى واقع رقمي احترافي',
-        },
-      ],
-    },
-    section_onpage: {
-      outdated_years: [],
-      thin_pages: [],
-      noindex_pages: [],
-      canonical_issues: [],
-    },
-    section_cannibalization: {
-      clusters_count: cannibalizationClusters.length,
-      clusters: cannibalizationClusters,
-    },
-    section_schema: {
-      gaps_count: 0,
-      gaps: [],
-    },
-    section_taxonomy: {
-      type_distribution: {
-        article: 45,
-        project: 65,
-        service: 28,
-        home: 1,
-        about: 1,
-        contact: 1,
-        other: 39,
-      },
-      uncategorized_count: 0,
-      samples: crawledPages.slice(0, 10).map((p) => ({
-        url: p.url,
-        page_type: p.pageType,
-        title: p.title,
-      })),
-    },
-    section_action_plans: [
-      {
-        role: 'technical_seo',
-        title: isAr ? 'خطة عمل التحسين التقني' : 'Technical SEO Action Plan',
-        items: [
-          isAr
-            ? 'تعديل الرابط الداخلي في صفحة (/من-نحن) للإشارة مباشرة إلى https://techhouseksa.com/اتصل-بنا بدلاً من رابط www'
-            : 'Update internal link on /من-نحن to point directly to root https://techhouseksa.com/اتصل-بنا without 301 redirect',
-          isAr
-            ? 'إجراء فحص دوري مستمر لضمان استمرارية خلو الموقع من أخطاء 404'
-            : 'Maintain zero 404 errors through scheduled automated regression monitoring',
-          isAr
-            ? 'الاستفادة من وسوم البيانات المنظمة المتوفرة (16 نوع Schema) وتوسيعها في المقالات الجديدة'
-            : 'Leverage the 16 rich Schema types across the site and extend to future blog posts',
-        ],
-      },
-      {
-        role: 'content',
-        title: isAr ? 'خطة عمل إدارة وتطوير المحتوى' : 'Content Strategy Action Plan',
-        items: [
-          isAr
-            ? 'إعادة صياغة العناوين الطويلة (>65 حرفاً) في صفحات المشاريع التسعة لضمان ظهورها الجذاب في نتائج البحث'
-            : 'Shorten 9 portfolio page title tags exceeding 65 characters to avoid SERP snippet truncation',
-          isAr
-            ? 'معالجة تنافس الكلمات بين مقالات السيو (السعودية والرياض) ودمج المقالات المتشابهة لتصدّر نتائج Google'
-            : 'Consolidate conflicting SEO articles to boost ranking authority on primary target keywords',
-          isAr
-            ? 'تحسين نصوص الروابط الداخلية (Anchor Texts) لتكون معبرة ومفيدة لمحركات البحث بدلاً من النصوص العامة'
-            : 'Enhance internal link anchor texts with targeted descriptive keywords instead of generic phrases',
-        ],
-      },
-      {
-        role: 'engineering',
-        title: isAr ? 'خطة عمل الدعم الهندسي والبرمجي' : 'Engineering Action Plan',
-        items: [
-          isAr
-            ? 'التأكد من التوجيه التلقائي الدائم من www إلى non-www على مستوى إعدادات الخادم Nginx / Cloudflare'
-            : 'Verify server-level 301 redirect rule from www to non-www on Cloudflare/Nginx',
-          isAr
-            ? 'الحفاظ على سرعة الاستجابة الممتازة الحالية (متوسط 185 مللي ثانية) لجميع صفحات الموقع'
-            : 'Maintain excellent server response times averaging 185ms across all 180 pages',
-        ],
-      },
-    ],
-  };
-
-  return {
-    success: true,
-    domain: 'techhouseksa.com',
-    rootUrl: `${root}/`,
-    summary: siteReport.summary,
-    pages: crawledPages,
-    issues: allIssues,
-    cannibalization: cannibalizationClusters,
-    siteReport,
-  };
-}
-
-
 export function getDomainAuditResult(
   domain: string,
   rootUrl: string,
@@ -1115,22 +704,45 @@ export function getDomainAuditResult(
   const { cleanRoot, domain: cleanDomain } = sanitizeInputUrl(rootUrl || domain);
   const dom = cleanDomain || domain;
 
-  if (dom.includes('techhouseksa.com')) {
-    return getTechhouseAuditResult(cleanRoot, isAr, targetYear);
-  }
-
-  const isFixture = domain.includes('127.0.0.1') || domain.includes('localhost') || domain.includes('8099');
-  if (!isFixture) {
-    // For real user domains, NEVER invent fake dummy pages!
-    return {
-      success: true,
+  return {
+    success: true,
+    domain: dom,
+    rootUrl: cleanRoot,
+    truncated: false,
+    summary: {
+      health_score: 100,
+      total_discovered: 0,
+      total_crawled: 0,
+      total_skipped: 0,
+      discovered_not_crawled: 0,
+      critical_count: 0,
+      warning_count: 0,
+      notice_count: 0,
+      status_distribution: {
+        ok_200: 0,
+        redirect_3xx: 0,
+        not_found_404: 0,
+        server_error_5xx: 0,
+        blocked_unverified: 0,
+        discovered_not_crawled: 0,
+      },
+    },
+    pages: [],
+    issues: [],
+    cannibalization: [],
+    siteReport: {
+      scan_id: `scan-${Date.now()}`,
+      project_id: 'quick-audit',
       domain: dom,
-      rootUrl: cleanRoot,
+      root_url: cleanRoot,
+      is_baseline: true,
+      created_at: new Date().toISOString(),
       summary: {
         health_score: 100,
         total_discovered: 0,
         total_crawled: 0,
         total_skipped: 0,
+        discovered_not_crawled: 0,
         critical_count: 0,
         warning_count: 0,
         notice_count: 0,
@@ -1140,764 +752,21 @@ export function getDomainAuditResult(
           not_found_404: 0,
           server_error_5xx: 0,
           blocked_unverified: 0,
+          discovered_not_crawled: 0,
         },
       },
-      pages: [],
-      issues: [],
-      cannibalization: [],
-      siteReport: {
-        scan_id: `scan-${Date.now()}`,
-        project_id: 'quick-audit',
-        domain: dom,
-        root_url: cleanRoot,
-        is_baseline: true,
-        created_at: new Date().toISOString(),
-        summary: {
-          health_score: 100,
-          total_discovered: 0,
-          total_crawled: 0,
-          total_skipped: 0,
-          critical_count: 0,
-          warning_count: 0,
-          notice_count: 0,
-          status_distribution: {
-            ok_200: 0,
-            redirect_3xx: 0,
-            not_found_404: 0,
-            server_error_5xx: 0,
-            blocked_unverified: 0,
-          },
-        },
-        top_fixes: [],
-        section_status: { total_404: 0, false_404_count: 0, true_dead_count: 0, soft_404_count: 0, false_404_ratio: '0%', false_404_items: [], slug_recovery_items: [], true_dead_items: [], soft_404_items: [] },
-        section_redirects: { total_redirects: 0, temporary_302_count: 0, chains_count: 0, loops_count: 0, legacy_groups: [], chains: [], temporary_redirects: [] },
-        section_onpage: { outdated_years: [], thin_pages: [], noindex_pages: [], canonical_issues: [] },
-        section_cannibalization: { clusters_count: 0, clusters: [] },
-        section_schema: { gaps_count: 0, gaps: [] },
-        section_taxonomy: { type_distribution: { home: 0, article: 0, product: 0, category: 0, contact: 0, about: 0, other: 0 }, uncategorized_count: 0, samples: [] },
-        section_action_plans: [],
-      },
-    };
-  }
-
-  const brandName = isFixture ? (isAr ? 'بوابة القبول الجامعي' : 'University Portal') : domain;
-
-  const rawPages: { path: string; status: number; title: string; h1: string; wordCount: number; pageType: CrawledPage['pageType']; canonical?: string; robots?: string; isIndexable?: boolean; redirectChain?: { from: string; to: string; status: number }[] }[] = [
-    {
-      path: '/',
-      status: 200,
-      title: isAr ? `${brandName} - الصفحة الرئيسية الرسمية` : `${brandName} - Official Homepage`,
-      h1: isAr ? `مرحباً بكم في ${brandName}` : `Welcome to ${brandName}`,
-      wordCount: 520,
-      pageType: 'home',
+      top_fixes: [],
+      section_status: { total_404: 0, false_404_count: 0, true_dead_count: 0, soft_404_count: 0, false_404_ratio: '0%', false_404_items: [], slug_recovery_items: [], true_dead_items: [], soft_404_items: [] },
+      section_redirects: { total_redirects: 0, temporary_302_count: 0, chains_count: 0, loops_count: 0, legacy_groups: [], chains: [], temporary_redirects: [] },
+      section_onpage: { outdated_years: [], thin_pages: [], noindex_pages: [], canonical_issues: [] },
+      section_cannibalization: { clusters_count: 0, clusters: [] },
+      section_schema: { gaps_count: 0, gaps: [] },
+      section_taxonomy: { type_distribution: { home: 0, article: 0, product: 0, category: 0, contact: 0, about: 0, other: 0 }, uncategorized_count: 0, samples: [] },
+      section_action_plans: [],
     },
-    {
-      path: '/services',
-      status: 200,
-      title: isAr ? `دليل الخدمات والحلول المتكاملة - ${brandName}` : `Services & Solutions Guide - ${brandName}`,
-      h1: isAr ? `خدمات وحلول ${brandName}` : `Services & Solutions`,
-      wordCount: 640,
-      pageType: 'article',
-    },
-    {
-      path: '/products',
-      status: 200,
-      title: isAr ? `قائمة المنتجات والعروض - ${brandName}` : `Products & Offers - ${brandName}`,
-      h1: isAr ? `المنتجات المتاحة` : `Available Products`,
-      wordCount: 510,
-      pageType: 'product',
-    },
-    {
-      path: '/about-us',
-      status: 200,
-      title: isAr ? `من نحن - ${brandName}` : `About Us - ${brandName}`,
-      h1: isAr ? `نبذة عن ${brandName}` : `About Us`,
-      wordCount: 380,
-      pageType: 'about',
-    },
-    {
-      path: '/contact-us',
-      status: 200,
-      title: isAr ? `اتصل بنا وتواصل مع الدعم` : `Contact Us & Support Team`,
-      h1: isAr ? `تواصل مع فريقنا` : `Contact Our Team`,
-      wordCount: 160,
-      pageType: 'contact',
-    },
-    {
-      path: '/blog',
-      status: 200,
-      title: isAr ? `المدونة والمقالات المتخصصة` : `Blog & Specialized Articles`,
-      h1: isAr ? `أحدث المقالات والأخبار` : `Latest Articles`,
-      wordCount: 420,
-      pageType: 'article',
-    },
-    {
-      path: '/blog/quick-tips',
-      status: 200,
-      title: isAr ? `نصائح سريعة ومختصرة` : `Quick Tips Guide`,
-      h1: isAr ? `دليل النصائح السريعة` : `Quick Tips Guide`,
-      wordCount: 42,
-      pageType: 'article',
-    },
-    {
-      path: '/guides/service-guide-2024',
-      status: 200,
-      title: isAr ? `دليل الأسعار والخدمات لعام 2024` : `Services & Pricing Guide 2024`,
-      h1: isAr ? `شروط الخدمات لعام 2024` : `Service Terms 2024`,
-      wordCount: 580,
-      pageType: 'article',
-    },
-    {
-      path: '/faq',
-      status: 200,
-      title: isAr ? `الأسئلة الشائعة - ${brandName}` : `Frequently Asked Questions - ${brandName}`,
-      h1: isAr ? `الأسئلة الأكثر تكراراً` : `Frequently Asked Questions`,
-      wordCount: 490,
-      pageType: 'article',
-    },
-    {
-      path: '/canonical-mismatch',
-      status: 200,
-      title: isAr ? `صفحة اختبار الكانونيكال` : `Canonical Test Page`,
-      h1: isAr ? `اختبار الرابط الأساسي` : `Canonical Test`,
-      wordCount: 360,
-      pageType: 'article',
-      canonical: `${cleanRoot}/different-target-canonical`,
-    },
-    {
-      path: '/private-landing',
-      status: 200,
-      title: isAr ? `صفحة هبوط غير مفهرسة` : `Unindexed Landing Page`,
-      h1: isAr ? `صفحة مستبعدة` : `Excluded Page`,
-      wordCount: 280,
-      pageType: 'other',
-      robots: 'noindex, follow',
-      isIndexable: false,
-    },
-    {
-      path: '/%20false-404-leading-space',
-      status: 404,
-      title: 'Not Found',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/false-404-leading-space',
-      status: 200,
-      title: isAr ? `المسار الصحيح بعد إزالة المسافة` : `Sanitized Target Path`,
-      h1: isAr ? `المسار الصحيح` : `Sanitized Path`,
-      wordCount: 310,
-      pageType: 'article',
-    },
-    {
-      path: '/broken-page-xyz',
-      status: 404,
-      title: 'Not Found',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/sitemap-dead-page',
-      status: 404,
-      title: 'Not Found',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/soft-404-page',
-      status: 200,
-      title: isAr ? `الصفحة غير موجودة - خطأ 404` : `Page Not Found - 404 Error`,
-      h1: isAr ? `خطأ 404` : `Error 404`,
-      wordCount: 25,
-      pageType: 'other',
-    },
-    {
-      path: '/chain-hop-1',
-      status: 301,
-      title: 'Redirect 301 -> /chain-hop-2',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-      redirectChain: [
-        { from: `${cleanRoot}/chain-hop-1`, to: `${cleanRoot}/chain-hop-2`, status: 301 },
-      ],
-    },
-    {
-      path: '/chain-hop-2',
-      status: 301,
-      title: 'Redirect 301 -> /chain-hop-3',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/chain-hop-3',
-      status: 301,
-      title: `Redirect 301 -> ${cleanRoot}/services`,
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/promo-302',
-      status: 302,
-      title: `Redirect 302 -> ${cleanRoot}/products`,
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/old-catalog-1',
-      status: 301,
-      title: `Redirect 301 -> ${cleanRoot}/products`,
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/old-catalog-2',
-      status: 301,
-      title: `Redirect 301 -> ${cleanRoot}/products`,
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/arabic-slug-دليل-الخدمات-الشامل',
-      status: 200,
-      title: isAr ? `دليل الخدمات الشامل بالعربية` : `Comprehensive Arabic Services Guide`,
-      h1: isAr ? `دليل الخدمات` : `Services Guide`,
-      wordCount: 890,
-      pageType: 'article',
-    },
-    {
-      path: '/arabic-slug-%D8%AF%D9%84%D9%8A%D9%84-%D8%A7%D9%84%D8%AE%D8%AF',
-      status: 404,
-      title: 'Not Found',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/articles/comprehensive-guide-2027',
-      status: 200,
-      title: isAr ? `دليل الخدمات والحلول المتكاملة لعام 2027` : `Complete Solutions & Services Guide 2027`,
-      h1: isAr ? `الدليل الشامل للخدمات والحلول 2027` : `Comprehensive Services Guide 2027`,
-      wordCount: 860,
-      pageType: 'article',
-    },
-    {
-      path: '/articles/top-services-2027',
-      status: 200,
-      title: isAr ? `أفضل خدمات وحلول الأعمال المبتكرة 2027` : `Top Business Services & Innovative Solutions 2027`,
-      h1: isAr ? `أفضل الخدمات والحلول لعام 2027` : `Top Services & Solutions 2027`,
-      wordCount: 820,
-      pageType: 'article',
-    },
-    {
-      path: '/privacy-policy',
-      status: 200,
-      title: isAr ? `سياسة الخصوصية - ${brandName}` : `Privacy Policy - ${brandName}`,
-      h1: isAr ? `سياسة الخصوصية` : `Privacy Policy`,
-      wordCount: 310,
-      pageType: 'other',
-    },
-    {
-      path: '/terms-of-service',
-      status: 200,
-      title: isAr ? `الشروط والأحكام - ${brandName}` : `Terms of Service - ${brandName}`,
-      h1: isAr ? `الشروط والأحكام` : `Terms of Service`,
-      wordCount: 420,
-      pageType: 'other',
-    },
-    {
-      path: '/server-error-500',
-      status: 500,
-      title: '500 Server Error',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-    {
-      path: '/blocked-admin/login',
-      status: 403,
-      title: '403 Forbidden',
-      h1: '',
-      wordCount: 0,
-      pageType: 'other',
-    },
-  ];
-
-  const pages: CrawledPage[] = rawPages.map((p, idx) => {
-    const fullUrl = `${cleanRoot}${p.path}`;
-    return {
-      url: fullUrl,
-      statusCode: p.status,
-      finalUrl: fullUrl,
-      responseTimeMs: 75 + (idx * 12),
-      source: (idx < 15 ? 'sitemap' : 'internal_link') as CrawledPage['source'],
-      foundOn: idx === 0 ? undefined : `${cleanRoot}/`,
-      title: p.title || '',
-      titleLength: (p.title || '').length,
-      description: isAr
-        ? `دليل ومواصفات وتفاصيل صفحة ${p.title} التابعة لموقع ${brandName}.`
-        : `Comprehensive overview and details of ${p.title} for ${brandName}.`,
-      descLength: 68,
-      canonical: p.canonical || fullUrl,
-      h1: p.h1 || '',
-      h1Tags: p.h1 ? [p.h1] : [],
-      robots: p.robots || 'index, follow',
-      isIndexable: p.isIndexable !== undefined ? p.isIndexable : (p.status === 200),
-      schemas: idx === 8 ? [] : ['WebPage', 'Organization'],
-      wordCount: p.wordCount,
-      pageType: p.pageType,
-      issues: [],
-      redirectChain: p.redirectChain,
-    };
-  });
-
-  const issues: IssueRecord[] = [
-    {
-      id: `iss-false-404-${domain}`,
-      fingerprint: `fp-false-404-${domain}`,
-      url: `${cleanRoot}/%20false-404-leading-space`,
-      checkId: 'false_404_whitespace',
-      severity: 'critical',
-      confidence: 'high',
-      title: isAr ? 'إصلاح رابط 404 ناتج عن مسافة بيضاء زائدة (%20)' : 'Fix False 404 with Leading Space (%20)',
-      title_ar: 'إصلاح رابط 404 ناتج عن مسافة بيضاء زائدة (%20)',
-      title_en: 'Fix False 404 with Leading Space (%20)',
-      details: isAr
-        ? `الرابط يحتوي على مسافة %20 زائدة؛ المسار الصحيح موجود ويعمل: ${cleanRoot}/false-404-leading-space`
-        : `URL contains %20 leading whitespace; sanitized path is valid: ${cleanRoot}/false-404-leading-space`,
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-      suggestion: { sanitized_target: `${cleanRoot}/false-404-leading-space` },
-    },
-    {
-      id: `iss-slug-${domain}`,
-      fingerprint: `fp-slug-${domain}`,
-      url: `${cleanRoot}/arabic-slug-%D8%AF%D9%84%D9%8A%D9%84-%D8%A7%D9%84%D8%AE%D8%AF`,
-      checkId: 'arabic_slug_truncated',
-      severity: 'critical',
-      confidence: 'high',
-      title: isAr ? 'تحويل 301 للرابط العربي المقطوع' : '301 Redirect for Truncated Arabic Slug',
-      title_ar: 'تحويل 301 للرابط العربي المقطوع',
-      title_en: '301 Redirect for Truncated Arabic Slug',
-      details: isAr
-        ? `رابط مقطوع؛ تم مطابقة الوجهة الفعالة بنسبة 92%: ${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل`
-        : `Truncated slug; matched target active guide with 92% confidence: ${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل`,
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-      suggestion: { matched_target: `${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل` },
-    },
-    {
-      id: `iss-chain-${domain}`,
-      fingerprint: `fp-chain-${domain}`,
-      url: `${cleanRoot}/chain-hop-1`,
-      checkId: 'redirect_chain_3hop',
-      severity: 'warning',
-      confidence: 'high',
-      title: isAr ? 'دمج سلسلة تحويلات من 3 قفزات' : 'Collapse 3-Hop Redirect Chain',
-      title_ar: 'دمج سلسلة تحويلات من 3 قفزات',
-      title_en: 'Collapse 3-Hop Redirect Chain',
-      details: isAr
-        ? `سلسلة تحويلات من 3 قفزات تستهلك ميزانية الزحف؛ الوجهة النهائية: ${cleanRoot}/services`
-        : `3-hop redirect chain consumes crawl budget; final target: ${cleanRoot}/services`,
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-      suggestion: { final_target: `${cleanRoot}/services` },
-    },
-    {
-      id: `iss-year-${domain}`,
-      fingerprint: `fp-year-${domain}`,
-      url: `${cleanRoot}/guides/service-guide-2024`,
-      checkId: 'outdated_year',
-      severity: 'warning',
-      confidence: 'high',
-      title: isAr ? 'تحديث السنة القديمة 2024 إلى 2027' : 'Update Outdated Year 2024 to 2027',
-      title_ar: 'تحديث السنة القديمة 2024 إلى 2027',
-      title_en: 'Update Outdated Year 2024 to 2027',
-      details: isAr
-        ? 'تم رصد سنة 2024 في العنوان والـ H1؛ يوصى بالتحديث إلى 2027 للحفاظ على معدل النقر (CTR)'
-        : 'Outdated year 2024 detected in Title/H1; update to 2027 to protect SERP CTR',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-schema-${domain}`,
-      fingerprint: `fp-schema-${domain}`,
-      url: `${cleanRoot}/faq`,
-      checkId: 'missing_faq_schema',
-      severity: 'notice',
-      confidence: 'medium',
-      title: isAr ? 'فرصة إضافة سكيما FAQPage لتعزيز النتائج المنسقة' : 'Missing FAQPage Schema for Rich Snippets',
-      title_ar: 'فرصة إضافة سكيما FAQPage لتعزيز النتائج المنسقة',
-      title_en: 'Missing FAQPage Schema for Rich Snippets',
-      details: isAr
-        ? 'تم رصد أسئلة وأجوبة دون وسم Schema FAQPage مهيكل'
-        : 'Q&A content detected without structured FAQPage JSON-LD',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-thin-${domain}`,
-      fingerprint: `fp-thin-${domain}`,
-      url: `${cleanRoot}/blog/quick-tips`,
-      checkId: 'thin_content',
-      severity: 'warning',
-      confidence: 'high',
-      title: isAr ? 'محتوى ضعيف (42 كلمة فقط)' : 'Thin Content (Only 42 Words)',
-      title_ar: 'محتوى ضعيف (42 كلمة فقط)',
-      title_en: 'Thin Content (Only 42 Words)',
-      details: isAr
-        ? 'محتوى الصفحة أقل من الحد الأدنى المقترح (250 كلمة)'
-        : 'Word count is 42, below recommended threshold of 250 words',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-canon-${domain}`,
-      fingerprint: `fp-canon-${domain}`,
-      url: `${cleanRoot}/canonical-mismatch`,
-      checkId: 'canonical_mismatch',
-      severity: 'critical',
-      confidence: 'high',
-      title: isAr ? 'تعارض في وسم الرابط الأساسي (Canonical)' : 'Canonical Tag Mismatch',
-      title_ar: 'تعارض في وسم الرابط الأساسي (Canonical)',
-      title_en: 'Canonical Tag Mismatch',
-      details: isAr
-        ? `رابط الكانونيكال يشير إلى صفحة أخرى: ${cleanRoot}/different-target-canonical`
-        : `Canonical points to mismatching URL: ${cleanRoot}/different-target-canonical`,
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-noindex-${domain}`,
-      fingerprint: `fp-noindex-${domain}`,
-      url: `${cleanRoot}/private-landing`,
-      checkId: 'noindex_directive',
-      severity: 'warning',
-      confidence: 'high',
-      title: isAr ? 'وسم منع الفهرسة (noindex) في صفحة هامة' : 'Noindex Directive on Important Page',
-      title_ar: 'وسم منع الفهرسة (noindex) في صفحة هامة',
-      title_en: 'Noindex Directive on Important Page',
-      details: isAr
-        ? 'الصفحة تمنع محركات البحث من فهرستها عبر وسم meta robots noindex'
-        : 'Page blocked from search index via meta robots noindex directive',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-soft404-${domain}`,
-      fingerprint: `fp-soft404-${domain}`,
-      url: `${cleanRoot}/soft-404-page`,
-      checkId: 'soft_404',
-      severity: 'critical',
-      confidence: 'high',
-      title: isAr ? 'خطأ Soft 404 (الصفحة ترجع 200 وعنوانها 404)' : 'Soft 404 (Returns HTTP 200 but Shows Not Found)',
-      title_ar: 'خطأ Soft 404 (الصفحة ترجع 200 وعنوانها 404)',
-      title_en: 'Soft 404 (Returns HTTP 200 but Shows Not Found)',
-      details: isAr
-        ? 'الصفحة ترجع كود 200 لكن عنوانها ومحتواها يدل على أنها غير موجودة'
-        : 'HTTP 200 returned but title/body indicates page does not exist',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-    {
-      id: `iss-dead-${domain}`,
-      fingerprint: `fp-dead-${domain}`,
-      url: `${cleanRoot}/broken-page-xyz`,
-      checkId: 'true_dead_404',
-      severity: 'critical',
-      confidence: 'high',
-      title: isAr ? 'صفحة معطلة 404 مرتبطة داخلياً' : 'Dead 404 Page Linked Internally',
-      title_ar: 'صفحة معطلة 404 مرتبطة داخلياً',
-      title_en: 'Dead 404 Page Linked Internally',
-      details: isAr ? 'رابط داخلي مكسور يرجع رمز استجابة 404' : 'Broken internal link returning HTTP 404',
-      firstSeen: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      daysOpen: 0,
-      isBaseline: true,
-      status: 'persisting',
-    },
-  ];
-
-  const cannibalizationCluster: CannibalizationCluster = {
-    topic: isAr ? `دليل الخدمات والحلول المتكاملة لعام 2027` : `Complete Solutions & Services Guide 2027`,
-    topic_ar: `دليل الخدمات والحلول المتكاملة لعام 2027`,
-    topic_en: `Complete Solutions & Services Guide 2027`,
-    similarity: 84,
-    similarityScore: '84%',
-    masterUrl: `${cleanRoot}/articles/comprehensive-guide-2027`,
-    masterTitle: isAr ? `الدليل الشامل للخدمات والحلول 2027` : `Comprehensive Services Guide 2027`,
-    candidateUrl: `${cleanRoot}/articles/top-services-2027`,
-    candidateTitle: isAr ? `أفضل خدمات وحلول الأعمال المبتكرة 2027` : `Top Business Services & Innovative Solutions 2027`,
-    conflictingKeywords: isAr ? ['خدمات', 'حلول', 'أعمال', '2027', 'تطوير'] : ['services', 'solutions', 'business', '2027', 'guide'],
-    signals: isAr ? 'تطابق بنسبة 84% في الكلمات الدلالية والعناوين الرئيسية' : '84% overlap in major keywords and headings',
-    signals_ar: 'تطابق بنسبة 84% في الكلمات الدلالية والعناوين الرئيسية',
-    signals_en: '84% overlap in major keywords and headings',
-    recommendation: isAr
-      ? `يوصى باعتماد "${cleanRoot}/articles/comprehensive-guide-2027" كمقال رئيسي، ودمج محتوى المقال الثاني معه أو عمل تحويل 301 لمنع تنافس المقالين في نتائج البحث.`
-      : `Consolidate "${cleanRoot}/articles/top-services-2027" into master guide "${cleanRoot}/articles/comprehensive-guide-2027" or configure a 301 redirect to eliminate SERP keyword competition.`,
-    recommendation_ar: `يوصى باعتماد "${cleanRoot}/articles/comprehensive-guide-2027" كمقال رئيسي، ودمج محتوى المقال الثاني معه أو عمل تحويل 301 لمنع تنافس المقالين في نتائج البحث.`,
-    recommendation_en: `Consolidate "${cleanRoot}/articles/top-services-2027" into master guide "${cleanRoot}/articles/comprehensive-guide-2027" or configure a 301 redirect to eliminate SERP keyword competition.`,
-  };
-
-  const siteReport: SiteReportData = {
-    scan_id: `scan-${Date.now()}`,
-    project_id: domain,
-    domain,
-    root_url: `${cleanRoot}/`,
-    is_baseline: true,
-    created_at: new Date().toISOString(),
-    summary: {
-      health_score: 81,
-      total_discovered: pages.length,
-      total_crawled: pages.length,
-      total_skipped: 0,
-      critical_count: 5,
-      warning_count: 12,
-      notice_count: 6,
-      status_distribution: {
-        ok_200: 18,
-        redirect_3xx: 6,
-        not_found_404: 3,
-        server_error_5xx: 1,
-        blocked_unverified: 1,
-      },
-    },
-    top_fixes: [
-      {
-        priority_score: 95,
-        title: isAr ? 'إصلاح رابط 404 ناتج عن مسافة بيضاء زائدة (%20)' : 'Fix False 404 with Leading Space',
-        url: `${cleanRoot}/%20false-404-leading-space`,
-        recommendation: isAr
-          ? `إزالة رمز %20 الزائد في الرابط الداخلي بالصفحة الرئيسية للإشارة إلى ${cleanRoot}/false-404-leading-space`
-          : `Remove accidental %20 in source internal link on homepage to point to ${cleanRoot}/false-404-leading-space`,
-        action_sentence: isAr
-          ? 'تعديل الرابط في كود الصفحة الرئيسية وإزالة المسافة الزائدة'
-          : 'Correct source link on homepage to remove leading %20 whitespace defect.',
-      },
-      {
-        priority_score: 90,
-        title: isAr ? 'تحويل 301 للرابط العربي المقطوع' : '301 Redirect for Truncated Arabic Slug',
-        url: `${cleanRoot}/arabic-slug-%D8%AF%D9%84%D9%8A%D9%84-%D8%A7%D9%84%D8%AE%D8%AF`,
-        recommendation: isAr
-          ? `إضافة تحويل 301 إلى الرابط الكامل: ${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل`
-          : `Add 301 redirect to active target: ${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل`,
-        action_sentence: isAr ? 'إضافة تحويل 301 للرابط العربي' : 'Add 301 redirect to matched active Arabic slug guide.',
-      },
-      {
-        priority_score: 88,
-        title: isAr ? 'دمج سلسلة تحويلات من 3 قفزات' : 'Collapse 3-Hop Redirect Chain',
-        url: `${cleanRoot}/chain-hop-1`,
-        recommendation: isAr
-          ? `تحويل /chain-hop-1 مباشرة إلى ${cleanRoot}/services باستخدام قاعدة Nginx المرفقة`
-          : `Collapse /chain-hop-1 directly to ${cleanRoot}/services using generated Nginx rule.`,
-        action_sentence: isAr ? 'تحديث قاعدة التحويل في الخادم للإشارة مباشرة إلى الوجهة النهائية' : 'Update Nginx redirect to point directly to final destination.',
-      },
-      {
-        priority_score: 82,
-        title: isAr ? 'تحديث السنة القديمة 2024 إلى 2027' : 'Update Outdated Year 2024 to 2027',
-        url: `${cleanRoot}/guides/service-guide-2024`,
-        recommendation: isAr ? 'تحديث السنة إلى 2027 في العنوان والـ H1 للحفاظ على معدل النقر (CTR)' : 'Update references from year 2024 to 2027 in title and H1.',
-        action_sentence: isAr ? 'تحديث سنة 2024 إلى 2027 في العنوان و H1' : 'Update outdated year 2024 to 2027 in title and H1.',
-      },
-    ],
-    section_status: {
-      total_404: 3,
-      false_404_count: 1,
-      true_dead_count: 2,
-      soft_404_count: 1,
-      false_404_ratio: '33% False vs 67% True Dead',
-      false_404_items: [
-        {
-          raw_url: `${cleanRoot}/%20false-404-leading-space`,
-          defect: isAr ? 'مسافة زائدة (%20) في الرابط' : 'leading whitespace / %20 in URL path',
-          sanitized_target: `${cleanRoot}/false-404-leading-space`,
-          source: 'internal_link',
-          found_on: `${cleanRoot}/`,
-        },
-      ],
-      slug_recovery_items: [
-        {
-          raw_url: `${cleanRoot}/arabic-slug-%D8%AF%D9%84%D9%8A%D9%84-%D8%A7%D9%84%D8%AE%D8%AF`,
-          status: 404,
-          matched_target: `${cleanRoot}/arabic-slug-دليل-الخدمات-الشامل`,
-          recovery_confidence: 0.92,
-        },
-      ],
-      true_dead_items: [
-        {
-          url: `${cleanRoot}/broken-page-xyz`,
-          status: 404,
-          inbound_links_count: 1,
-          in_sitemap: false,
-          dead_match: `${cleanRoot}/services`,
-          confidence: 0.65,
-        },
-      ],
-      soft_404_items: [
-        {
-          url: `${cleanRoot}/soft-404-page`,
-          status: 200,
-          reason: isAr ? 'عنوان الصفحة يحتوي على عبارة تدل على أنها غير موجودة' : 'Page title contains 404 error phrase',
-          confidence: 'high',
-        },
-      ],
-    },
-    section_redirects: {
-      total_redirects: 6,
-      temporary_302_count: 1,
-      chains_count: 1,
-      loops_count: 0,
-      legacy_groups: [],
-      chains: [
-        {
-          source: `${cleanRoot}/chain-hop-1`,
-          hops: 3,
-          path: ['/chain-hop-1', '/chain-hop-2', '/chain-hop-3', '/services'],
-          final_target: `${cleanRoot}/services`,
-          nginx: `rewrite ^/chain-hop-1$ ${cleanRoot}/services permanent;`,
-        },
-      ],
-      temporary_redirects: [
-        { url: `${cleanRoot}/promo-302`, target: `${cleanRoot}/products`, code: 302 },
-      ],
-    },
-    section_onpage: {
-      outdated_years: [
-        {
-          url: `${cleanRoot}/guides/service-guide-2024`,
-          detected_year: '2024',
-          target_year: '2027',
-          field: 'title / H1',
-          suggested_text: isAr ? `دليل الأسعار والخدمات 2027 - ${brandName}` : `Services & Pricing Guide 2027 - ${brandName}`,
-        },
-      ],
-      thin_pages: [
-        { url: `${cleanRoot}/blog/quick-tips`, word_count: 42, threshold: 250, has_meta_desc: false },
-      ],
-      noindex_pages: [
-        { url: `${cleanRoot}/private-landing`, directive: 'noindex, follow' },
-      ],
-      canonical_issues: [
-        { url: `${cleanRoot}/canonical-mismatch`, declared: `${cleanRoot}/different-target-canonical`, issue: isAr ? 'تعارض الرابط الأساسي' : 'Canonical mismatch' },
-      ],
-    },
-    section_cannibalization: {
-      clusters_count: 1,
-      clusters: [cannibalizationCluster],
-    },
-    section_schema: {
-      gaps_count: 1,
-      gaps: [
-        {
-          url: `${cleanRoot}/faq`,
-          missing: 'FAQPage',
-          detected_qa_count: 2,
-          generated_jsonld: JSON.stringify(
-            {
-              '@context': 'https://schema.org',
-              '@type': 'FAQPage',
-              mainEntity: [
-                {
-                  '@type': 'Question',
-                  name: isAr ? `ما هي الخدمات المقدمة من ${brandName}؟` : `What services are provided by ${brandName}?`,
-                  acceptedAnswer: {
-                    '@type': 'Answer',
-                    text: isAr ? `نقدم حلولاً متكاملة مع دعم فني مستمر وأعلى معايير الجودة.` : `We deliver comprehensive solutions with ongoing support and top standards.`,
-                  },
-                },
-              ],
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    },
-    section_taxonomy: {
-      type_distribution: { home: 1, article: 10, product: 3, other: 16 },
-      uncategorized_count: 0,
-      samples: [],
-    },
-    section_action_plans: [
-      {
-        role: 'engineering',
-        title: isAr ? 'خطة عمل المطورين والمهندسين' : 'Engineering Plan',
-        items: [
-          isAr ? 'تطبيق قواعد إعادة التوجيه 301 في خادم Nginx للروابط المعطلة وسلاسل التحويل.' : 'Deploy 301 rewrite rules in Nginx for dead pages and redirect chains.',
-          isAr ? `إصلاح الرابط الذي يحتوي على مسافة بيضاء زائدة (%20) في كود الصفحة الرئيسية (${cleanRoot}/).` : `Fix internal anchor tags with leading whitespace (%20) on homepage (${cleanRoot}/).`,
-          isAr ? `إدراج كود Schema FAQPage في صفحة الأسئلة الشائعة (${cleanRoot}/faq).` : `Embed FAQPage Schema JSON-LD on FAQ page (${cleanRoot}/faq).`,
-        ],
-      },
-      {
-        role: 'content',
-        title: isAr ? 'خطة عمل صناع المحتوى والتحرير' : 'Content Plan',
-        items: [
-          isAr ? 'تحديث سنة 2024 إلى 2027 في عنوان وفقرات دليل الخدمات.' : 'Update year 2024 to 2027 in service guide.',
-          isAr ? 'حل مشكلة تضارب وتنافس الكلمات بين المقالات المتشابهة بدمجهما في دليل موحد.' : 'Resolve cannibalization by consolidating overlapping articles into a single guide.',
-          isAr ? 'إثراء محتوى النصائح السريعة (42 كلمة فقط) ليصل إلى أكثر من 300 كلمة مفيدة.' : 'Expand thin content on quick tips page (currently 42 words).',
-        ],
-      },
-      {
-        role: 'technical_seo',
-        title: isAr ? 'خطة عمل السيو التقني' : 'Technical SEO Plan',
-        items: [
-          isAr ? 'مراجعة أوسمة الـ Canonical وإزالة التوجيه غير الصحيح في صفحة canonical-mismatch.' : 'Fix canonical mismatch on /canonical-mismatch page.',
-          isAr ? 'التأكد من عدم وجود وسم Noindex غير مقصود في صفحات الموقع الرئيسية.' : 'Verify robots meta to ensure key pages do not have accidental noindex.',
-        ],
-      },
-    ],
-  };
-
-  return {
-    success: true,
-    domain,
-    rootUrl: `${cleanRoot}/`,
-    summary: siteReport.summary,
-    pages,
-    issues,
-    cannibalization: [cannibalizationCluster],
-    siteReport,
   };
 }
 
-/**
- * Fixture Baseline Report Generator (used for instant offline/GitHub Pages testing)
- */
 export function getFixtureReport(domain: string, isAr: boolean): SiteReportData {
   return getDomainAuditResult(domain, `http://${domain}/`, isAr, 2027).siteReport;
 }
@@ -1931,37 +800,12 @@ async function fetchSafe(
     return res;
   }
 
-  // In browser: First attempt direct fetch
-  try {
-    const res = await fetch(url, {
-      headers,
-      redirect: manualRedirect ? 'manual' : 'follow',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return res;
-  } catch (directErr) {
-    // If blocked by CORS or Mixed Content, try proxy fallback
-  }
-
-  // Browser CORS Proxy Fallback for external websites
-  const proxies = [
-    `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl, {
-        headers: { Accept: headers['Accept'] || '*/*' },
-        signal: AbortSignal.timeout(timeoutMs + 3000),
-      });
-      if (res.ok) {
-        return res;
-      }
-    } catch (e) {}
-  }
-
-  throw new Error(`Failed to fetch ${url}`);
+  // Direct fetch only (Defect #4: Third-party proxy removal - zero data leak)
+  return await fetch(url, {
+    headers,
+    redirect: manualRedirect ? 'manual' : 'follow',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
 }
 
 /**
@@ -1984,15 +828,7 @@ export async function executeSiteCrawl(options: {
   const isFixtureDomain = domain.includes('127.0.0.1') || domain.includes('localhost') || domain.includes('8099');
   const isBrowserHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-  // If techhouseksa.com, return the genuine 180-page crawl result immediately
-  if (domain.includes('techhouseksa.com')) {
-    return getTechhouseAuditResult(cleanRoot, isAr, targetYear);
-  }
 
-  // If in browser on HTTPS (e.g. GitHub Pages), direct connection to 127.0.0.1:8099 is strictly blocked by browser Mixed Content security.
-  if (isFixtureDomain && isBrowserHttps) {
-    return getFixtureAuditResult(domain, cleanRoot, isAr, targetYear);
-  }
 
   // Attempt Server-Side Edge Crawler first (Zero CORS restrictions, handles Angular / SPA / 2900+ pages)
   if (typeof window !== 'undefined' && supabase && !isFixtureDomain) {
@@ -2240,10 +1076,7 @@ export async function executeSiteCrawl(options: {
     }
   } catch (_) {}
 
-  // If fixture domain and nothing was discovered (e.g. server down or blocked by browser), fallback to fixture result
-  if (isFixtureDomain && discoveredMap.size <= 1) {
-    return getFixtureAuditResult(domain, cleanRoot, isAr, targetYear);
-  }
+
 
   // 4. Crawl Discovered Pages (Deep-audit top priority pages, catalog all discovered up to maxPages)
   const priorityDeepLimit = 60;
@@ -2731,34 +1564,32 @@ export async function executeSiteCrawl(options: {
     crawledPages.push(...batchResults);
   }
 
-  // Catalog all remaining discovered URLs as genuine crawled pages (up to maxPages, 5,000)
+  // Catalog all remaining discovered URLs truthfully as discovered_not_crawled (Defect #1 Fix)
   const auditedSet = new Set(crawledPages.map((p) => p.url));
   const allDiscoveredList = Array.from(discoveredMap.keys());
   for (const remUrl of allDiscoveredList) {
     if (!auditedSet.has(remUrl) && crawledPages.length < maxPages) {
-      const pathParts = new URL(remUrl).pathname.split('/').filter(Boolean);
-      const slug = pathParts[pathParts.length - 1] || '';
-      const pageTitle = decodeURIComponent(slug.replace(/[-_]/g, ' ')) || domain;
       const prov = discoveredMap.get(remUrl) || { source: 'sitemap' as const };
       crawledPages.push({
         url: remUrl,
-        statusCode: 200,
+        statusCode: 0,
         finalUrl: remUrl,
-        responseTimeMs: 80,
+        responseTimeMs: 0,
         source: prov.source,
         foundOn: prov.foundOn,
-        title: pageTitle,
-        titleLength: pageTitle.length,
+        title: '',
+        titleLength: 0,
         description: '',
         descLength: 0,
-        canonical: remUrl,
-        h1: pageTitle,
-        h1Tags: [pageTitle],
-        robots: 'index, follow',
-        isIndexable: true,
-        schemas: ['WebPage'],
-        wordCount: 350,
-        pageType: classifyPageType(remUrl, pageTitle),
+        canonical: '',
+        h1: '',
+        h1Tags: [],
+        robots: '',
+        isIndexable: false,
+        schemas: [],
+        wordCount: 0,
+        pageType: 'other',
+        crawlStatus: 'discovered_not_crawled',
         issues: [],
         redirectChain: [],
       });
@@ -2845,19 +1676,25 @@ export async function executeSiteCrawl(options: {
   let calculatedScore = 100 - (criticalCount * 15 + warningCount * 5 + noticeCount * 1);
   calculatedScore = Math.max(10, Math.min(100, calculatedScore));
 
+  const actualCrawledCount = crawledPages.filter((p) => p.statusCode > 0 && p.crawlStatus !== 'discovered_not_crawled').length;
+  const notCrawledCount = crawledPages.filter((p) => p.crawlStatus === 'discovered_not_crawled' || p.statusCode === 0).length;
+  const isTruncated = discoveredMap.size > actualCrawledCount;
+
   const statusDistribution = {
     ok_200: crawledPages.filter((p) => p.statusCode === 200).length,
     redirect_3xx: crawledPages.filter((p) => p.statusCode >= 300 && p.statusCode < 400).length,
     not_found_404: crawledPages.filter((p) => p.statusCode === 404).length,
     server_error_5xx: crawledPages.filter((p) => p.statusCode >= 500).length,
-    blocked_unverified: crawledPages.filter((p) => p.statusCode === 0 || p.statusCode === 403).length,
+    blocked_unverified: 0,
+    discovered_not_crawled: notCrawledCount,
   };
 
   const summary: SiteReportSummary = {
     health_score: calculatedScore,
     total_discovered: discoveredMap.size,
-    total_crawled: crawledPages.length,
+    total_crawled: actualCrawledCount,
     total_skipped: 0,
+    discovered_not_crawled: notCrawledCount,
     critical_count: criticalCount,
     warning_count: warningCount,
     notice_count: noticeCount,
@@ -3177,6 +2014,12 @@ export async function executeSiteCrawl(options: {
     success: true,
     domain,
     rootUrl: cleanRoot,
+    truncated: isTruncated,
+    sampleNotice: isTruncated
+      ? (isAr
+          ? `عينة ممثلة (${actualCrawledCount} صفحة مفحوصة بعمق من أصل ${discoveredMap.size} صفحة مستكشفة)`
+          : `Representative sample (${actualCrawledCount} deep-audited pages out of ${discoveredMap.size} discovered URLs)`)
+      : undefined,
     summary,
     pages: crawledPages,
     issues: allIssues,

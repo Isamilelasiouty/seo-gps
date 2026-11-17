@@ -35,8 +35,8 @@ class HttpStatusCheck(BaseCheck):
 
         # 1. False 404 (malformed URL that resolves when cleaned)
         if current_snapshot.get("is_false_404"):
-            defects = current_snapshot.get("url_defects", ["whitespace_padding"])
-            sanitized = current_snapshot.get("sanitized_target", url)
+            defects = current_snapshot.get("url_defects") or current_snapshot.get("defects", ["whitespace_padding"])
+            sanitized = current_snapshot.get("sanitized_target") or current_snapshot.get("corrected_url", url)
             issues.append(
                 Issue(
                     check_id=self.id,

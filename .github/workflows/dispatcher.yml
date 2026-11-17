@@ -100,7 +100,7 @@ jobs:
           has_projects = "true" if projects else "false"
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f"has_projects={has_projects}\n")
-              f.write(f"matrix={json.dumps(projects[:10])}\n")
+              f.write(f"matrix={json.dumps(projects[:256])}\n")
           EOF
 
   crawl:

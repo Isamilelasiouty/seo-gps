@@ -80,6 +80,38 @@ class CanonicalCheck(BaseCheck):
         except Exception:
             pass
 
+        # 4. Canonical target points to 3xx redirect or 4xx/5xx error (Gate 2 requirement)
+        all_snapshots = (context or {}).get("all_snapshots", {})
+        if all_snapshots and current_canonical in all_snapshots:
+            target_snap = all_snapshots[current_canonical]
+            target_status = target_snap.get("status_code", 200)
+            if 300 <= target_status < 400 or target_snap.get("redirect_chain"):
+                issues.append(
+                    Issue(
+                        check_id=self.id,
+                        severity="warning",
+                        category=self.category,
+                        url=url,
+                        title=f"Canonical points to redirected URL ({target_status})",
+                        details=f"Canonical tag points to '{current_canonical}', which returns HTTP {target_status} redirect. Canonical tags should point directly to the final 200 destination.",
+                        evidence={"canonical_url": current_canonical, "status_code": target_status},
+                        suggestion={"action": "Update canonical tag to point directly to the final 200 destination"}
+                    )
+                )
+            elif target_status >= 400:
+                issues.append(
+                    Issue(
+                        check_id=self.id,
+                        severity="critical",
+                        category=self.category,
+                        url=url,
+                        title=f"Canonical points to broken URL ({target_status})",
+                        details=f"Canonical tag points to '{current_canonical}', which returns HTTP {target_status} error.",
+                        evidence={"canonical_url": current_canonical, "status_code": target_status},
+                        suggestion={"action": "Fix or update canonical tag to a valid 200 OK page"}
+                    )
+                )
+
         return issues
 
     def get_metadata(self) -> Dict[str, Any]:

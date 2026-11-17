@@ -722,34 +722,32 @@ serve(async (req) => {
       crawledPages.push(...batchResults);
     }
 
-    // Add all remaining discovered URLs as genuine cataloged pages (up to 5,000 URLs)
+    // Add all remaining discovered URLs truthfully as discovered_not_crawled (Defect #1 Fix)
     const auditedSet = new Set(crawledPages.map((p) => p.url));
     const maxCatalog = Math.min(allDiscoveredUrlsList.length, 5000);
     for (let idx = 0; idx < maxCatalog; idx++) {
       const remUrl = allDiscoveredUrlsList[idx];
       if (!auditedSet.has(remUrl)) {
-        const pathParts = new URL(remUrl).pathname.split("/").filter(Boolean);
-        const slug = pathParts[pathParts.length - 1] || "";
-        const pageTitle = decodeURIComponent(slug.replace(/[-_]/g, " ")) || domain;
         crawledPages.push({
           url: remUrl,
-          statusCode: 200,
+          statusCode: 0,
           finalUrl: remUrl,
-          responseTimeMs: 75,
+          responseTimeMs: 0,
           source: discoveredUrls.get(remUrl)?.source || "sitemap",
           foundOn: discoveredUrls.get(remUrl)?.foundOn,
-          title: pageTitle,
-          titleLength: pageTitle.length,
+          title: "",
+          titleLength: 0,
           description: "",
           descLength: 0,
-          canonical: remUrl,
-          h1: pageTitle,
-          h1Tags: [pageTitle],
-          robots: "index, follow",
-          isIndexable: true,
-          schemas: ["WebPage"],
-          wordCount: 350,
-          pageType: remUrl.includes("/product") ? "product" : remUrl.includes("/category") ? "category" : "article",
+          canonical: "",
+          h1: "",
+          h1Tags: [],
+          robots: "",
+          isIndexable: false,
+          schemas: [],
+          wordCount: 0,
+          pageType: "other",
+          crawlStatus: "discovered_not_crawled",
           issues: [],
         });
       }
@@ -762,19 +760,25 @@ serve(async (req) => {
     const penalty = critCount * 8 + warnCount * 2 + noticCount * 0.5;
     const healthScore = Math.max(25, Math.min(100, Math.round(100 - penalty)));
 
+    const actualCrawledCount = crawledPages.filter((p) => p.statusCode > 0 && p.crawlStatus !== "discovered_not_crawled").length;
+    const notCrawledCount = crawledPages.filter((p) => p.crawlStatus === "discovered_not_crawled" || p.statusCode === 0).length;
+    const isTruncated = totalDiscoveredCount > actualCrawledCount;
+
     const statusDistribution = {
       ok_200: crawledPages.filter((p) => p.statusCode === 200).length,
       redirect_3xx: crawledPages.filter((p) => p.statusCode >= 300 && p.statusCode < 400).length,
       not_found_404: crawledPages.filter((p) => p.statusCode === 404).length,
       server_error_5xx: crawledPages.filter((p) => p.statusCode >= 500).length,
       blocked_unverified: 0,
+      discovered_not_crawled: notCrawledCount,
     };
 
     const summary = {
       health_score: healthScore,
       total_discovered: totalDiscoveredCount,
-      total_crawled: crawledPages.length,
+      total_crawled: actualCrawledCount,
       total_skipped: 0,
+      discovered_not_crawled: notCrawledCount,
       critical_count: critCount,
       warning_count: warnCount,
       notice_count: noticCount,
@@ -857,6 +861,12 @@ serve(async (req) => {
         success: true,
         domain,
         rootUrl: cleanRoot,
+        truncated: isTruncated,
+        sampleNotice: isTruncated
+          ? (locale === "ar"
+              ? `عينة ممثلة (${actualCrawledCount} صفحة مفحوصة بعمق من أصل ${totalDiscoveredCount} صفحة مستكشفة)`
+              : `Representative sample (${actualCrawledCount} deep-audited pages out of ${totalDiscoveredCount} discovered URLs)`)
+          : undefined,
         summary,
         pages: crawledPages,
         issues: allIssues,

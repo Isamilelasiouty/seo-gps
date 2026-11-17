@@ -26,6 +26,7 @@ import { exportAllPagesCSV } from '../lib/reportExporter';
 export interface PageRecord {
   url: string;
   statusCode: number;
+  crawlStatus?: 'crawled' | 'discovered_not_crawled' | 'pending' | 'blocked_by_robots' | 'failed' | 'skipped';
   finalUrl?: string;
   source?: string;
   foundOn?: string;
@@ -258,14 +259,18 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                         <td className="py-3 px-4 font-mono font-bold">
                           <span
                             className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              p.statusCode === 200
+                              p.statusCode === 0 || p.crawlStatus === 'discovered_not_crawled'
+                                ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                                : p.statusCode === 200
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : p.statusCode >= 300 && p.statusCode < 400
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-rose-100 text-rose-800'
                             }`}
                           >
-                            {p.statusCode}
+                            {p.statusCode === 0 || p.crawlStatus === 'discovered_not_crawled'
+                              ? (isAr ? 'مستكشفة' : 'Discovered')
+                              : p.statusCode}
                           </span>
                         </td>
                         <td className="py-3 px-4 font-mono text-ink max-w-xs truncate">

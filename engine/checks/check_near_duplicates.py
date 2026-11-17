@@ -56,7 +56,7 @@ class NearDuplicatesCheck(BaseCheck):
     ) -> List[Issue]:
         issues = []
         url = current_snapshot.get("url", "")
-        body_text = current_snapshot.get("body_text", "") or current_snapshot.get("description", "")
+        body_text = current_snapshot.get("main_content_text", "") or current_snapshot.get("body_text", "") or current_snapshot.get("text_sample", "") or current_snapshot.get("description", "")
         word_count = current_snapshot.get("word_count", 0)
 
         if word_count < 100:
@@ -70,7 +70,7 @@ class NearDuplicatesCheck(BaseCheck):
         for other_url, other_snap in all_snapshots.items():
             if other_url == url:
                 continue
-            other_text = other_snap.get("body_text", "") or other_snap.get("description", "")
+            other_text = other_snap.get("main_content_text", "") or other_snap.get("body_text", "") or other_snap.get("text_sample", "") or other_snap.get("description", "")
             other_wc = other_snap.get("word_count", 0)
             if other_wc < 100:
                 continue

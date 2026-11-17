@@ -27,7 +27,7 @@ class ThinContentCheck(BaseCheck):
             return issues
 
         word_count = current_snapshot.get("word_count", 0)
-        threshold = current_snapshot.get("word_count_threshold", 250)
+        threshold = (context or {}).get("word_count_threshold", 250)
         url = current_snapshot.get("url", "")
 
         if 0 < word_count < threshold:

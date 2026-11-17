@@ -23,7 +23,7 @@ class OutdatedYearCheck(BaseCheck):
         if current_snapshot.get("status_code") != 200:
             return issues
 
-        target_year = current_snapshot.get("target_year", 2027)
+        target_year = (context or {}).get("target_year", 2027)
         url = current_snapshot.get("url", "")
 
         fields_to_scan = [

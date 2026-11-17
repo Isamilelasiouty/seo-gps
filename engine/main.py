@@ -124,11 +124,17 @@ async def run_audit_for_project(
     # 3. Store Scan URLs
     storage.save_scan_urls(scan_id, project_id, current_snapshots)
 
-    # 4. Run Checks & Diff Engine
+    # 4. Run Checks & Diff Engine (Defect #17: Load actual previous scan snapshots)
+    previous_snapshots = []
+    if not is_baseline:
+        latest_scan = storage.get_latest_scan(project_id)
+        if latest_scan and latest_scan.get("id"):
+            previous_snapshots = storage.get_scan_urls(latest_scan["id"])
+
     diff_engine = DiffEngine()
     raw_issues, _, health_score = diff_engine.compare_snapshots(
         current_snapshots=current_snapshots,
-        previous_snapshots=[],
+        previous_snapshots=previous_snapshots,
         is_first_run=is_baseline,
     )
 

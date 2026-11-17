@@ -524,7 +524,12 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
               <div className="flex items-center gap-2 pt-1 flex-wrap">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface border border-surface-hairline text-xs font-bold text-ink shadow-sm">
                   <span className="text-ink-muted">{t('quick_audit.pages_crawled')}:</span>
-                  <span className="text-gold font-extrabold">{pages.length}</span>
+                  <span className="text-gold font-extrabold">{auditResult.summary?.total_crawled || pages.filter(p => p.statusCode > 0).length || pages.length}</span>
+                  {auditResult.summary?.total_discovered && auditResult.summary.total_discovered > (auditResult.summary.total_crawled || pages.filter(p => p.statusCode > 0).length) ? (
+                    <span className="text-ink-muted text-[11px] font-normal">
+                      / {auditResult.summary.total_discovered} {isAr ? 'مستكشف' : 'discovered'}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/70 text-xs font-bold text-emerald-700 shadow-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -549,6 +554,24 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
               <GaugeChart score={healthScore || 80} label={t('quick_audit.score_label')} />
             </div>
           </div>
+
+          {/* Sample / Truncation Banner */}
+          {auditResult.truncated && (
+            <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-medium">
+                  {auditResult.sampleNotice ||
+                    (isAr
+                      ? `عينة ممثلة: تم فحص أول ${auditResult.summary?.total_crawled || 60} صفحة بعمق من أصل ${auditResult.summary?.total_discovered || pages.length} رابط مستكشف. للفحص الشامل حتى مليون صفحة، يتم التوجيه عبر محرك بايثون المتقدم.`
+                      : `Representative Sample: Deep-audited first ${auditResult.summary?.total_crawled || 60} pages out of ${auditResult.summary?.total_discovered || pages.length} discovered URLs. For comprehensive 1,000,000-page audits, execute via the Core Engine.`)}
+                </span>
+              </div>
+              <span className="shrink-0 text-[11px] font-extrabold px-2.5 py-1 bg-amber-200/70 rounded-lg text-amber-800 border border-amber-300/50">
+                {isAr ? 'عينة سريعة' : 'Quick Sample'}
+              </span>
+            </div>
+          )}
 
           {/* Quick Jump Navigation Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -771,7 +794,7 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
                         return (
                           <tr key={idx} className="hover:bg-gold-tint/10 transition-colors">
                             <td className="py-3 px-4 max-w-md">
-                              <div className="font-bold text-ink truncate">{p.title || (isAr ? 'بدون عنوان' : 'Untitled')}</div>
+                              <div className="font-bold text-ink truncate">{p.title || (isAr ? (p.statusCode === 0 ? 'مستكشفة (لم تُفحص بعد)' : 'بدون عنوان') : (p.statusCode === 0 ? 'Discovered (Not Crawled)' : 'Untitled'))}</div>
                               <a
                                 href={p.url}
                                 target="_blank"
@@ -785,14 +808,18 @@ export const QuickAuditPage: React.FC<QuickAuditPageProps> = ({
                             <td className="py-3 px-4 whitespace-nowrap">
                               <span
                                 className={`px-2 py-0.5 rounded text-xs font-black ${
-                                  p.statusCode === 200
+                                  p.statusCode === 0 || p.crawlStatus === 'discovered_not_crawled'
+                                    ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                                    : p.statusCode === 200
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                     : p.statusCode >= 300 && p.statusCode < 400
                                     ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                     : 'bg-rose-50 text-rose-700 border border-rose-200'
                                 }`}
                               >
-                                {p.statusCode}
+                                {p.statusCode === 0 || p.crawlStatus === 'discovered_not_crawled'
+                                  ? (isAr ? 'مستكشفة' : 'Discovered')
+                                  : p.statusCode}
                               </span>
                             </td>
                             <td className="py-3 px-4 whitespace-nowrap">

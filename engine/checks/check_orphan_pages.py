@@ -21,7 +21,7 @@ class OrphanPagesCheck(BaseCheck):
         issues = []
         url = current_snapshot.get("url", "")
         source = current_snapshot.get("source", "")
-        inlinks = current_snapshot.get("inlinks", [])
+        inlinks = current_snapshot.get("inbound_links") or current_snapshot.get("inlinks", [])
         status_code = current_snapshot.get("status_code", 200)
 
         # Ignore root/homepage
@@ -31,7 +31,7 @@ class OrphanPagesCheck(BaseCheck):
 
         # An orphan page is present in sitemap or inventory, but has 0 internal inlinks
         if status_code == 200 and source in ("sitemap", "imported") and len(inlinks) == 0:
-            inlink_count = context.get("inlink_counts", {}).get(url, 0) if context else 0
+            inlink_count = context.get("inlink_counts", {}).get(url, len(inlinks)) if context else len(inlinks)
             if inlink_count == 0:
                 issues.append(
                     Issue(

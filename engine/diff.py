@@ -5,6 +5,7 @@ Author: Ismail El Asiouty
 from typing import Dict, Any, List, Tuple
 from .checks.registry import registry
 from .checks.base import Issue
+from .scoring import calculate_site_health_score
 from .analytics.cluster import find_cannibalization_clusters
 
 
@@ -35,9 +36,16 @@ class DiffEngine:
 
         # 1. Prepare global context (e.g. content cannibalization clusters)
         clusters = find_cannibalization_clusters(current_snapshots, threshold=0.80)
+        # Build inlink counts from inbound_links on snapshots
+        inlink_counts = {
+            s["url"]: len(s.get("inbound_links") or s.get("inlinks") or [])
+            for s in current_snapshots if "url" in s
+        }
         context = {
             "similarity_clusters": clusters,
             "sitemap_crawled": any(s.get("in_sitemap") for s in current_snapshots),
+            "inlink_counts": inlink_counts,
+            "all_snapshots": current_map,
         }
 
         active_issues: List[Issue] = []
@@ -84,13 +92,8 @@ class DiffEngine:
         # In a real run, previous open issues from database would be compared.
         # Any previous issue whose condition no longer triggers on current snapshot is marked resolved.
 
-        # 6. Compute health score
-        # Deductions: Critical: -15, Warning: -5, Notice: -1
-        crit_count = sum(1 for i in active_issues if i.severity == "critical")
-        warn_count = sum(1 for i in active_issues if i.severity == "warning")
-        notice_count = sum(1 for i in active_issues if i.severity == "notice")
-
-        penalty = (crit_count * 15) + (warn_count * 5) + (notice_count * 1)
-        health_score = max(0, min(100, 100 - penalty))
+        # 6. Compute Semrush-grade proportional health score (Defect #19 Fix)
+        score_data = calculate_site_health_score(len(current_snapshots), active_issues)
+        health_score = score_data["health_score"]
 
         return active_issues, resolved_issues, health_score

@@ -127,19 +127,33 @@ class ReportVerifier:
                             f"Status mismatch for {url}: expected {expected_status}, live returned {actual_status}"
                         )
 
-                    # Compare title if it was 200
-                    if actual_status == 200 and expected_title:
-                        soup = BeautifulSoup(res.text, "html.parser")
-                        actual_title = (soup.title.string or "").strip() if soup.title else ""
-                        if actual_title and expected_title and actual_title != expected_title:
-                            # If slight difference due to whitespace or pipe, warn
-                            norm_actual = re.sub(r"\s+", " ", actual_title).strip()
+                    # Compare title, canonical, and h1 if status is 200
+                    if actual_status == 200:
+                        from engine.parser import extract_dom_signals
+                        from engine.url_utils import normalize_url
+                        signals = extract_dom_signals(res.text, actual_final_url, urlparse(actual_final_url).netloc)
+
+                        # Compare title
+                        if expected_title and signals["title"]:
+                            norm_actual = re.sub(r"\s+", " ", signals["title"]).strip()
                             norm_expected = re.sub(r"\s+", " ", expected_title).strip()
                             if norm_actual != norm_expected:
                                 mismatches += 1
-                                errors.append(
-                                    f"Title mismatch for {url}: expected '{norm_expected}', got '{norm_actual}'"
-                                )
+                                errors.append(f"Title mismatch for {url}: expected '{norm_expected}', got '{norm_actual}'")
+
+                        # Compare canonical
+                        expected_canonical = item.get("canonical_url") or item.get("canonical")
+                        if expected_canonical and signals["canonical_url"]:
+                            if normalize_url(signals["canonical_url"]) != normalize_url(expected_canonical):
+                                mismatches += 1
+                                errors.append(f"Canonical mismatch for {url}: expected '{expected_canonical}', got '{signals['canonical_url']}'")
+
+                        # Compare H1
+                        expected_h1 = item.get("primary_h1") or item.get("h1")
+                        if expected_h1 and signals["primary_h1"]:
+                            if re.sub(r"\s+", " ", signals["primary_h1"]).strip() != re.sub(r"\s+", " ", expected_h1).strip():
+                                mismatches += 1
+                                errors.append(f"H1 mismatch for {url}: expected '{expected_h1}', got '{signals['primary_h1']}'")
                 except Exception as exc:
                     mismatches += 1
                     errors.append(f"Failed to fetch live sample URL {url}: {exc}")
@@ -150,3 +164,30 @@ class ReportVerifier:
             "mismatches": mismatches,
             "errors": errors,
         }
+
+
+if __name__ == "__main__":
+    import argparse
+    import asyncio
+    from engine.storage import LocalStorage
+
+    parser = argparse.ArgumentParser(description="SEO GPS Verification Engine")
+    parser.add_argument("--live-sample", type=int, default=5, help="Number of URLs to randomly sample and independently verify")
+    parser.add_argument("--scan-id", type=str, default=None, help="Scan ID to verify")
+    args = parser.parse_args()
+
+    storage = LocalStorage()
+    scans = storage.list_scans("fixture-test-e2e") if not args.scan_id else [{"id": args.scan_id}]
+    if not scans:
+        print("[Verify] No scans found in local storage.")
+    else:
+        target_scan_id = scans[0]["id"]
+        urls = storage.get_scan_urls(target_scan_id)
+        print(f"[Verify] Verifying live sample of {args.live_sample} URLs from scan {target_scan_id}...")
+        verifier = ReportVerifier()
+        result = asyncio.run(verifier.verify_live_sample(urls, sample_size=args.live_sample))
+        print(f"[Verify] Result: {'PASSED' if result['passed'] else 'FAILED'}")
+        print(f"[Verify] Sampled: {result['sampled_count']}, Mismatches: {result['mismatches']}")
+        if result["errors"]:
+            for err in result["errors"]:
+                print(f"  - {err}")
