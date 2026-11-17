@@ -20,6 +20,7 @@ import { ProjectData } from '../components/EditProjectModal';
 interface DashboardPageProps {
   onNavigateToIssues: () => void;
   onNavigateToSiteReport?: () => void;
+  onNavigateToPages?: () => void;
   onOpenAddProject: () => void;
   activeProject: ProjectData | null;
   onEditProject: () => void;
@@ -36,6 +37,7 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToIssues,
   onNavigateToSiteReport,
+  onNavigateToPages,
   onOpenAddProject,
   activeProject,
   onEditProject,
@@ -283,7 +285,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               statusBadge={isAr ? 'مكتملة الفحص' : 'Audited'}
               sublabel={isAr ? 'جاهزة ومستكشفة بالكامل' : 'Indexed and live crawl completed'}
               isSelected={selectedMetric === 'pages'}
-              onClick={() => setSelectedMetric('pages')}
+              onClick={() => {
+                setSelectedMetric('pages');
+                if (onNavigateToPages) onNavigateToPages();
+              }}
             />
           </div>
 

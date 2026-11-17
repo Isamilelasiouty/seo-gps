@@ -68,6 +68,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
   const isAr = locale !== 'en';
   const [query, setQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'clean' | 'issues' | '3xx' | '4xx_5xx'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [selectedPage, setSelectedPage] = useState<PageRecord | null>(null);
@@ -84,6 +85,11 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
 
   const handleTypeChange = (type: string) => {
     setSelectedType(type);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (status: 'all' | 'clean' | 'issues' | '3xx' | '4xx_5xx') => {
+    setStatusFilter(status);
     setCurrentPage(1);
   };
 
@@ -107,13 +113,30 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
         )
       : [];
 
+  const cleanCount = pages.filter((p) => (p.statusCode === 200 || !p.statusCode) && (!p.issueCount || p.issueCount === 0)).length;
+  const issuesCount = pages.filter((p) => p.issueCount && p.issueCount > 0).length;
+  const redirectsCount = pages.filter((p) => p.statusCode >= 300 && p.statusCode < 400).length;
+  const errorsCount = pages.filter((p) => p.statusCode >= 400).length;
+
   const filtered = pages.filter((p) => {
     const matchesSearch =
       p.url.toLowerCase().includes(query.toLowerCase()) ||
       p.title.toLowerCase().includes(query.toLowerCase()) ||
       (p.internalLinks && p.internalLinks.some((l) => l.anchor.toLowerCase().includes(query.toLowerCase()) || l.url.toLowerCase().includes(query.toLowerCase())));
     const matchesType = selectedType === 'all' || p.pageType === selectedType;
-    return matchesSearch && matchesType;
+
+    let matchesStatus = true;
+    if (statusFilter === 'clean') {
+      matchesStatus = (p.statusCode === 200 || !p.statusCode) && (!p.issueCount || p.issueCount === 0);
+    } else if (statusFilter === 'issues') {
+      matchesStatus = Boolean(p.issueCount && p.issueCount > 0);
+    } else if (statusFilter === '3xx') {
+      matchesStatus = p.statusCode >= 300 && p.statusCode < 400;
+    } else if (statusFilter === '4xx_5xx') {
+      matchesStatus = p.statusCode >= 400;
+    }
+
+    return matchesSearch && matchesType && matchesStatus;
   });
 
   const getPageTypeLabel = (type: string) => {
@@ -170,11 +193,23 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
             {t('pages.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-xs font-bold text-ink">
-            <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{isAr ? 'إجمالي الصفحات المكتشفة:' : 'Total Discovered Pages:'}</span>
+            <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{isAr ? 'إجمالي الصفحات:' : 'Total Pages:'}</span>
             <span className="text-gold font-mono font-extrabold">{pages.length.toLocaleString()}</span>
           </div>
+          <div className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-1">
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{isAr ? 'سليمة:' : 'Clean:'}</span>
+            <span className="font-mono font-extrabold">{cleanCount.toLocaleString()}</span>
+          </div>
+          {issuesCount > 0 && (
+            <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              <span>{isAr ? 'بها تنبيهات:' : 'Has Issues:'}</span>
+              <span className="font-mono font-extrabold">{issuesCount.toLocaleString()}</span>
+            </div>
+          )}
           <div className="px-3 py-1.5 rounded-lg bg-surface border border-surface-hairline text-xs font-bold text-ink">
             <span className="text-ink-muted ltr:mr-1.5 rtl:ml-1.5">{t('pages.internal_links')}:</span>
             <span className="text-gold font-mono">{totalInternalLinks.toLocaleString()}</span>
@@ -226,6 +261,68 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
             </div>
           </div>
 
+          {/* Quick Status Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto text-xs pb-0.5">
+            <button
+              onClick={() => handleStatusFilterChange('all')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                statusFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white text-ink-muted hover:text-ink border border-surface-hairline'
+              }`}
+            >
+              {isAr ? `كل الصفحات (${pages.length})` : `All Pages (${pages.length})`}
+            </button>
+            <button
+              onClick={() => handleStatusFilterChange('clean')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                statusFilter === 'clean'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span>{isAr ? `صفحات سليمة (${cleanCount})` : `Clean (${cleanCount})`}</span>
+            </button>
+            {issuesCount > 0 && (
+              <button
+                onClick={() => handleStatusFilterChange('issues')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                  statusFilter === 'issues'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{isAr ? `بها تنبيهات (${issuesCount})` : `Has Issues (${issuesCount})`}</span>
+              </button>
+            )}
+            {redirectsCount > 0 && (
+              <button
+                onClick={() => handleStatusFilterChange('3xx')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                  statusFilter === '3xx'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200'
+                }`}
+              >
+                {isAr ? `تحويلات 3xx (${redirectsCount})` : `Redirects (${redirectsCount})`}
+              </button>
+            )}
+            {errorsCount > 0 && (
+              <button
+                onClick={() => handleStatusFilterChange('4xx_5xx')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                  statusFilter === '4xx_5xx'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                }`}
+              >
+                {isAr ? `أخطاء 4xx/5xx (${errorsCount})` : `Errors (${errorsCount})`}
+              </button>
+            )}
+          </div>
+
           {/* Pages Table */}
           <div className="editorial-card overflow-hidden">
             <table className="w-full border-collapse text-left rtl:text-right text-body-md">
@@ -237,6 +334,7 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                   <th className="py-3 px-4">{t('pages.title_tag')}</th>
                   <th className="py-3 px-4">{t('pages.internal_links')}</th>
                   <th className="py-3 px-4">{t('pages.schemas')}</th>
+                  <th className="py-3 px-4">{isAr ? 'الحالة والمشاكل' : 'Issues'}</th>
                   <th className="py-3 px-4 text-center">{isAr ? 'الإجراء' : 'Action'}</th>
                 </tr>
               </thead>
@@ -317,6 +415,19 @@ export const PagesExplorerPage: React.FC<PagesExplorerPageProps> = ({ pages = []
                             </div>
                           ) : (
                             <span className="text-ink-muted italic">{isAr ? 'لا يوجد' : 'None'}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {p.issueCount && p.issueCount > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <AlertTriangle className="w-3 h-3" />
+                              <span>{p.issueCount} {isAr ? 'تنبيه' : 'issues'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="w-3 h-3" />
+                              <span>{isAr ? 'سليمة' : 'Clean'}</span>
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center">

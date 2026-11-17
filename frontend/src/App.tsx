@@ -651,6 +651,7 @@ export const AppContent: React.FC = () => {
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
             onNavigateToSiteReport={() => setCurrentTab('site_report')}
+            onNavigateToPages={() => setCurrentTab('pages')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}
@@ -721,6 +722,7 @@ export const AppContent: React.FC = () => {
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
             onNavigateToSiteReport={() => setCurrentTab('site_report')}
+            onNavigateToPages={() => setCurrentTab('pages')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}
@@ -732,6 +734,7 @@ export const AppContent: React.FC = () => {
           <DashboardPage
             onNavigateToIssues={() => setCurrentTab('issues')}
             onNavigateToSiteReport={() => setCurrentTab('site_report')}
+            onNavigateToPages={() => setCurrentTab('pages')}
             onOpenAddProject={() => setIsAddProjectOpen(true)}
             activeProject={activeProject}
             onEditProject={() => setProjectToEdit(activeProject)}

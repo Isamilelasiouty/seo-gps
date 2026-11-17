@@ -24,7 +24,7 @@ import re
 import ssl
 import time
 from typing import Dict, Any, List, Set, Optional, Tuple, Callable
-from urllib.parse import urljoin, urlparse, unquote
+from urllib.parse import urljoin, urlparse, unquote, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -150,27 +150,39 @@ class PoliteCrawler:
         Parses Disallow, Allow, Crawl-delay and extracts sitemaps.
         """
         sitemaps_found: List[str] = []
-        robots_url = f"{root_url.rstrip('/')}/robots.txt"
-        try:
-            resp = await client.get(robots_url, timeout=min(8, self.timeout))
-            if resp.status_code == 200 and resp.text:
-                self.robot_parser = RobotFileParser()
-                self.robot_parser.parse(resp.text.splitlines())
+        parsed_root = urlsplit(root_url)
+        origin = f"{parsed_root.scheme}://{parsed_root.netloc}"
+        robots_candidates = [f"{origin}/robots.txt"]
+        if root_url.rstrip("/") != origin:
+            robots_candidates.append(f"{root_url.rstrip('/')}/robots.txt")
 
-                # Check crawl-delay directive
-                delay_val = self.robot_parser.crawl_delay(self.user_agent)
-                if delay_val:
-                    self.delay = max(self.delay, float(delay_val))
+        for robots_url in robots_candidates:
+            try:
+                resp = await client.get(robots_url, timeout=min(8, self.timeout))
+                if resp.status_code == 200 and resp.text:
+                    # Guard against SPA returning index.html for non-existent robots.txt
+                    text_lower = resp.text.lower()
+                    if "<!doctype" in text_lower or "<html" in text_lower:
+                        continue
+                    self.robot_parser = RobotFileParser()
+                    self.robot_parser.parse(resp.text.splitlines())
 
-                # Extract sitemaps from robots.txt
-                for line in resp.text.splitlines():
-                    line_clean = line.strip()
-                    if line_clean.lower().startswith("sitemap:"):
-                        sm_url = line_clean.split(":", 1)[1].strip()
-                        if sm_url:
-                            sitemaps_found.append(sm_url)
-        except Exception:
-            pass
+                    # Check crawl-delay directive
+                    delay_val = self.robot_parser.crawl_delay(self.user_agent)
+                    if delay_val:
+                        self.delay = max(self.delay, float(delay_val))
+
+                    # Extract sitemaps from robots.txt
+                    for line in resp.text.splitlines():
+                        line_clean = line.strip()
+                        if line_clean.lower().startswith("sitemap:"):
+                            sm_url = line_clean.split(":", 1)[1].strip()
+                            if sm_url and sm_url not in sitemaps_found:
+                                sitemaps_found.append(sm_url)
+                    if sitemaps_found:
+                        break
+            except Exception:
+                pass
 
         return sitemaps_found
 
@@ -398,16 +410,25 @@ class PoliteCrawler:
                 for sm in robots_sitemaps:
                     candidate_sitemaps.add(sm)
 
+                parsed_r = urlsplit(clean_root)
+                origin_r = f"{parsed_r.scheme}://{parsed_r.netloc}"
+
                 common_sitemaps = [
-                    f"{clean_root}/sitemap_index.xml",
-                    f"{clean_root}/sitemap.xml",
-                    f"{clean_root}/sitemaps.xml",
-                    f"{clean_root}/server-sitemap.xml",
-                    f"{clean_root}/sitemap/sitemap.xml",
-                    f"{clean_root}/sitemap-pages.xml",
-                    f"{clean_root}/sitemap-posts.xml",
-                    f"{clean_root}/wp-sitemap.xml",
+                    f"{origin_r}/sitemap_index.xml",
+                    f"{origin_r}/sitemap.xml",
+                    f"{origin_r}/sitemaps.xml",
+                    f"{origin_r}/server-sitemap.xml",
+                    f"{origin_r}/sitemap/sitemap.xml",
+                    f"{origin_r}/sitemap-pages.xml",
+                    f"{origin_r}/sitemap-posts.xml",
+                    f"{origin_r}/wp-sitemap.xml",
                 ]
+                if clean_root.rstrip("/") != origin_r:
+                    common_sitemaps.extend([
+                        f"{clean_root}/sitemap_index.xml",
+                        f"{clean_root}/sitemap.xml",
+                        f"{clean_root}/wp-sitemap.xml",
+                    ])
                 for cs in common_sitemaps:
                     candidate_sitemaps.add(cs)
 
