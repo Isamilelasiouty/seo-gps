@@ -24,11 +24,11 @@ function quickAuditApiPlugin(): Plugin {
                 return;
               }
 
-              console.log(`[QuickAudit API] Starting deep crawl for: ${rootUrl} (Max: ${maxPages || 50})`);
+              console.log(`[QuickAudit API] Starting deep crawl for: ${rootUrl} (Max: ${maxPages || 5000})`);
               const result = await executeSiteCrawl({
                 rootUrl,
                 sitemapUrl,
-                maxPages: maxPages || 50,
+                maxPages: maxPages || 5000,
                 targetYear: targetYear || 2027,
                 locale: locale || 'ar',
               });
@@ -45,6 +45,44 @@ function quickAuditApiPlugin(): Plugin {
         } else {
           res.writeHead(405, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+        }
+      });
+
+      // Internal CORS Proxy for browser-side crawls (Zero CORS blocks, zero 3rd party leaks)
+      server.middlewares.use('/api/proxy', async (req, res) => {
+        try {
+          const reqUrl = new URL(req.url || '', 'http://localhost');
+          const targetUrl = reqUrl.searchParams.get('url');
+          if (!targetUrl) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'url query parameter is required' }));
+            return;
+          }
+
+          const botHeaders = {
+            'User-Agent': 'SEOGPS-Bot/1.0 (+https://isamilelasiouty.github.io/seo-gps; by Ismail El Asiouty)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ar,en-US,en;q=0.9',
+          };
+
+          const upstream = await fetch(targetUrl, {
+            headers: botHeaders,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(8000),
+          });
+
+          res.writeHead(upstream.status, {
+            'Content-Type': upstream.headers.get('content-type') || 'text/html; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+          });
+
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.end(buffer);
+        } catch (err: any) {
+          res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ error: err.message || 'Proxy fetch failed' }));
         }
       });
 

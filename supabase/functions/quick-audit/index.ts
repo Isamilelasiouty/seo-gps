@@ -559,42 +559,32 @@ serve(async (req) => {
       crawledPages.push(...batchResults);
     }
 
-    // Include all remaining discovered pages truthfully as clean/indexed pages from sitemap (User Requirement)
+    // Catalog any remaining discovered URLs honestly as 'discovered_not_crawled' (Rule #1: Zero Data Fabrication)
     const auditedSet = new Set(crawledPages.map((p) => p.url));
     const maxCatalog = Math.min(allDiscoveredUrlsList.length, 10000);
     for (let idx = 0; idx < maxCatalog; idx++) {
       const remUrl = allDiscoveredUrlsList[idx];
       if (!auditedSet.has(remUrl)) {
-        let inferredTitle = "";
-        try {
-          const uObj = new URL(remUrl);
-          const segs = uObj.pathname.split("/").filter(Boolean);
-          const lastP = segs.pop() || "";
-          const dec = decodeURIComponent(lastP).replace(/[-_]+/g, " ").trim();
-          if (dec) inferredTitle = dec.charAt(0).toUpperCase() + dec.slice(1);
-        } catch (_) {}
-        if (!inferredTitle) inferredTitle = remUrl.split("/").pop()?.replace(/[-_]+/g, " ") || domain;
-
         crawledPages.push({
           url: remUrl,
-          statusCode: 200,
+          statusCode: 0,
           finalUrl: remUrl,
-          responseTimeMs: 80,
+          responseTimeMs: 0,
           source: discoveredUrls.get(remUrl)?.source || "sitemap",
           foundOn: discoveredUrls.get(remUrl)?.foundOn,
-          title: inferredTitle,
-          titleLength: inferredTitle.length,
+          title: isAr ? "غير مفحوصة بعد (مكتشفة في خريطة الموقع)" : "Discovered in Sitemap (Pending Crawl)",
+          titleLength: 0,
           description: "",
           descLength: 0,
           canonical: remUrl,
-          h1: inferredTitle,
-          h1Tags: [inferredTitle],
-          robots: "index, follow",
+          h1: "",
+          h1Tags: [],
+          robots: "unknown",
           isIndexable: true,
           schemas: [],
           wordCount: 0,
           pageType: remUrl === cleanRoot ? "home" : remUrl.includes("/product") ? "product" : remUrl.includes("/category") ? "category" : "article",
-          crawlStatus: "crawled",
+          crawlStatus: "discovered_not_crawled",
           issues: [],
         });
       }

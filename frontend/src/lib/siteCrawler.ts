@@ -784,10 +784,26 @@ export function getFixtureAuditResult(
 }
 
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .trim();
+}
+
 async function fetchSafe(
   url: string,
   headers: Record<string, string>,
-  timeoutMs: number = 5000,
+  timeoutMs: number = 6000,
   manualRedirect: boolean = false
 ): Promise<{ ok: boolean; status: number; headers: Headers; text: () => Promise<string> }> {
   // If running in Node.js, standard fetch works directly with no CORS restrictions
@@ -800,12 +816,26 @@ async function fetchSafe(
     return res;
   }
 
-  // Direct fetch only (Defect #4: Third-party proxy removal - zero data leak)
-  return await fetch(url, {
-    headers,
-    redirect: manualRedirect ? 'manual' : 'follow',
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  // In browser: attempt direct fetch first, fallback to internal dev proxy if blocked by CORS
+  try {
+    const res = await fetch(url, {
+      headers,
+      redirect: manualRedirect ? 'manual' : 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res;
+  } catch (directErr: any) {
+    // If direct fetch failed (e.g. CORS), fallback to local /api/proxy
+    try {
+      const proxyRes = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      return proxyRes;
+    } catch (_) {
+      throw directErr;
+    }
+  }
 }
 
 /**
@@ -817,6 +847,7 @@ export async function executeSiteCrawl(options: {
   maxPages?: number;
   targetYear?: number;
   locale?: 'ar' | 'en';
+  onProgress?: (progress: { percent: number; message: string; crawledCount: number; totalCount: number }) => void;
 }): Promise<FullAuditResult> {
   const maxPages = options.maxPages || 5000;
   const targetYear = options.targetYear || 2027;
@@ -828,7 +859,28 @@ export async function executeSiteCrawl(options: {
   const isFixtureDomain = domain.includes('127.0.0.1') || domain.includes('localhost') || domain.includes('8099');
   const isBrowserHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-
+  // 1.1 In local browser development, attempt local Vite dev crawler endpoint first (Zero CORS, high speed)
+  if (typeof window !== 'undefined' && !isFixtureDomain) {
+    try {
+      const localRes = await fetch('/api/quick-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rootUrl: cleanRoot,
+          sitemapUrl: options.sitemapUrl?.trim() || undefined,
+          maxPages,
+          targetYear,
+          locale: isAr ? 'ar' : 'en',
+        }),
+      });
+      if (localRes.ok) {
+        const localData = await localRes.json();
+        if (localData && localData.success && localData.pages && localData.pages.length > 0) {
+          return localData;
+        }
+      }
+    } catch (_) {}
+  }
 
   // Attempt Server-Side Edge Crawler first (Zero CORS restrictions, handles Angular / SPA / 2900+ pages)
   if (typeof window !== 'undefined' && supabase && !isFixtureDomain) {
@@ -1107,12 +1159,11 @@ export async function executeSiteCrawl(options: {
 
 
 
-  // 4. Crawl Discovered Pages (Deep-audit top priority pages, catalog all discovered up to maxPages)
-  const priorityDeepLimit = Math.min(120, Math.max(60, options.maxPages || 120));
-  const targetUrls = Array.from(discoveredMap.keys()).slice(0, priorityDeepLimit);
+  // 4. Crawl Discovered Pages (Full deep-audit for all discovered pages up to maxPages)
+  const targetUrls = Array.from(discoveredMap.keys()).slice(0, maxPages);
   const crawledPages: CrawledPage[] = [];
   const allIssues: IssueRecord[] = [];
-  const BATCH_SIZE = 6;
+  const BATCH_SIZE = typeof window === 'undefined' ? 12 : 6;
 
   for (let i = 0; i < targetUrls.length; i += BATCH_SIZE) {
     const batch = targetUrls.slice(i, i + BATCH_SIZE);
@@ -1175,15 +1226,15 @@ export async function executeSiteCrawl(options: {
           } else if (statusCode === 200) {
             const html = await res.text();
 
-            // Extract Title
+            // Extract Title (Real from HTML, decoded)
             const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-            title = titleMatch ? titleMatch[1].replace(/\s+/g, ' ').trim() : '';
+            title = titleMatch ? decodeHtmlEntities(titleMatch[1].replace(/\s+/g, ' ').trim()) : '';
 
             // Extract Meta Description
             const descMatch =
               html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["']/i) ||
               html.match(/<meta[^>]+content=["']([\s\S]*?)["'][^>]+name=["']description["']/i);
-            description = descMatch ? descMatch[1].replace(/\s+/g, ' ').trim() : '';
+            description = descMatch ? decodeHtmlEntities(descMatch[1].replace(/\s+/g, ' ').trim()) : '';
 
             // Extract Canonical
             const canMatch =
@@ -1193,7 +1244,7 @@ export async function executeSiteCrawl(options: {
 
             // Extract H1 tags
             const h1Matches = Array.from(html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi));
-            h1Tags = h1Matches.map((m) => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+            h1Tags = h1Matches.map((m) => decodeHtmlEntities(m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())).filter(Boolean);
             h1 = h1Tags[0] || '';
 
             // Extract Robots
@@ -1593,125 +1644,140 @@ export async function executeSiteCrawl(options: {
     crawledPages.push(...batchResults);
   }
 
-  // Include all remaining discovered pages truthfully as clean/indexed pages from sitemap (User Requirement)
+  // Catalog any discovered URLs that were not crawled due to maxPages limit (Rule #1: Zero Data Fabrication)
   const auditedSet = new Set(crawledPages.map((p) => p.url));
   const allDiscoveredList = Array.from(discoveredMap.keys());
   for (const remUrl of allDiscoveredList) {
-    if (!auditedSet.has(remUrl) && crawledPages.length < maxPages) {
+    if (!auditedSet.has(remUrl)) {
       const prov = discoveredMap.get(remUrl) || { source: 'sitemap' as const };
-
-      // Infer readable title from URL path / slug
-      let inferredTitle = '';
-      try {
-        const urlObj = new URL(remUrl);
-        const segments = urlObj.pathname.split('/').filter(Boolean);
-        const lastPart = segments.pop() || '';
-        const decoded = decodeURIComponent(lastPart).replace(/[-_]+/g, ' ').trim();
-        if (decoded) {
-          inferredTitle = decoded.charAt(0).toUpperCase() + decoded.slice(1);
-        }
-      } catch (_) {}
-      if (!inferredTitle) {
-        inferredTitle = remUrl.split('/').pop()?.replace(/[-_]+/g, ' ') || domain;
-      }
-
-      const pType = classifyPageType(remUrl, inferredTitle);
-
       crawledPages.push({
         url: remUrl,
-        statusCode: 200, // Verified published page from sitemap index
+        statusCode: 0,
         finalUrl: remUrl,
-        responseTimeMs: 80,
+        responseTimeMs: 0,
         source: prov.source,
         foundOn: prov.foundOn,
-        title: inferredTitle,
-        titleLength: inferredTitle.length,
+        title: isAr ? 'غير مفحوصة بعد (مكتشفة في خريطة الموقع)' : 'Discovered in Sitemap (Pending Crawl)',
+        titleLength: 0,
         description: '',
         descLength: 0,
         canonical: remUrl,
-        h1: inferredTitle,
-        h1Tags: [inferredTitle],
-        robots: 'index, follow',
+        h1: '',
+        h1Tags: [],
+        robots: 'unknown',
         isIndexable: true,
         schemas: [],
         wordCount: 0,
-        pageType: pType,
-        crawlStatus: 'crawled',
+        pageType: classifyPageType(remUrl, ''),
+        crawlStatus: 'discovered_not_crawled',
         issues: [],
         redirectChain: [],
       });
     }
   }
 
-  // 5. Keyword Cannibalization Analysis (تنافس الكلمات)
+  // 5. Keyword Cannibalization Analysis (Optimized Token Inverted Index for 10,000+ pages)
   const ok200Pages = crawledPages.filter((p) => p.statusCode === 200 && p.title);
   const cannibalizationClusters: CannibalizationCluster[] = [];
 
+  // Build inverted index of significant keywords to candidate page indices
+  const pageKeywordsList: string[][] = [];
+  const tokenToPageIndices = new Map<string, number[]>();
+
   for (let i = 0; i < ok200Pages.length; i++) {
-    for (let j = i + 1; j < ok200Pages.length; j++) {
-      const pageA = ok200Pages[i];
-      const pageB = ok200Pages[j];
-
-      if (normalizeUrl(pageA.url) === normalizeUrl(pageB.url)) continue;
-
-      const wordsA = extractKeywords(pageA.title + ' ' + pageA.h1);
-      const wordsB = extractKeywords(pageB.title + ' ' + pageB.h1);
-
-      const overlap = calculateKeywordOverlap(wordsA, wordsB);
-      if ((overlap.similarity >= 30 || overlap.keywords.length >= 3) && overlap.keywords.length >= 2) {
-        // Determine master vs candidate (prefer higher word count or shorter URL)
-        const aIsMaster = pageA.wordCount >= pageB.wordCount;
-        const master = aIsMaster ? pageA : pageB;
-        const candidate = aIsMaster ? pageB : pageA;
-
-        const topic = overlap.keywords.slice(0, 4).join(' ');
-        const simScore = `${overlap.similarity}%`;
-        const rec_ar = `يوصى باعتماد "${master.title}" كمقال رئيسي، ودمج محتوى "${candidate.title}" معه أو عمل تحويل 301 لمنع تنافس المقالين في نتائج البحث.`;
-        const rec_en = `Consolidate "${candidate.title}" into master guide "${master.title}" or configure a 301 redirect to eliminate SERP keyword competition.`;
-        const sig_ar = `تطابق بنسبة ${simScore} في الكلمات الدلالية: (${overlap.keywords.join('، ')})`;
-        const sig_en = `${simScore} overlap in keywords: (${overlap.keywords.join(', ')})`;
-
-        cannibalizationClusters.push({
-          topic,
-          similarity: overlap.similarity,
-          similarityScore: simScore,
-          masterUrl: master.url,
-          masterTitle: master.title,
-          candidateUrl: candidate.url,
-          candidateTitle: candidate.title,
-          conflictingKeywords: overlap.keywords,
-          signals: isAr ? sig_ar : sig_en,
-          signals_ar: sig_ar,
-          signals_en: sig_en,
-          recommendation: isAr ? rec_ar : rec_en,
-          recommendation_ar: rec_ar,
-          recommendation_en: rec_en,
-        });
-
-        // Add to issues list as warning
-        allIssues.push({
-          id: `iss-cannibal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          fingerprint: `fp-cannibal-${candidate.url}-${master.url}`,
-          url: candidate.url,
-          checkId: 'content_cannibalization',
-          title: isAr
-            ? `تنافس كلمات دلالية مع (${master.title}) - نسبة التطابق ${simScore}`
-            : `Keyword Cannibalization conflict with (${master.title}) - ${simScore} overlap`,
-          title_ar: `تنافس كلمات دلالية مع (${master.title}) - نسبة التطابق ${simScore}`,
-          title_en: `Keyword Cannibalization conflict with (${master.title}) - ${simScore} overlap`,
-          severity: 'warning',
-          confidence: 'high',
-          firstSeen: new Date().toISOString(),
-          lastSeen: new Date().toISOString(),
-          daysOpen: 0,
-          isBaseline: true,
-          status: 'persisting',
-          details: isAr ? rec_ar : rec_en,
-          details_ar: rec_ar,
-          details_en: rec_en,
-          suggestion: { master_url: master.url, candidate_url: candidate.url, similarity: overlap.similarity },
-        });
+    const kws = extractKeywords(ok200Pages[i].title + ' ' + (ok200Pages[i].h1 || ''));
+    pageKeywordsList.push(kws);
+    for (const kw of kws) {
+      if (kw.length >= 3) {
+        const arr = tokenToPageIndices.get(kw);
+        if (arr) {
+          arr.push(i);
+        } else {
+          tokenToPageIndices.set(kw, [i]);
+        }
       }
+    }
+  }
+
+  // Candidate pairs that share keywords
+  const candidatePairs = new Map<string, [number, number]>();
+  for (const [, indices] of tokenToPageIndices) {
+    if (indices.length > 1 && indices.length <= 100) {
+      for (let x = 0; x < indices.length; x++) {
+        for (let y = x + 1; y < indices.length; y++) {
+          const idxA = indices[x];
+          const idxB = indices[y];
+          const pairKey = idxA < idxB ? `${idxA}:${idxB}` : `${idxB}:${idxA}`;
+          if (!candidatePairs.has(pairKey)) {
+            candidatePairs.set(pairKey, [idxA, idxB]);
+          }
+        }
+      }
+    }
+  }
+
+  // Evaluate candidate pairs only (O(K) instead of O(N^2))
+  for (const [, [i, j]] of candidatePairs) {
+    const pageA = ok200Pages[i];
+    const pageB = ok200Pages[j];
+    if (normalizeUrl(pageA.url) === normalizeUrl(pageB.url)) continue;
+
+    const wordsA = pageKeywordsList[i];
+    const wordsB = pageKeywordsList[j];
+    const overlap = calculateKeywordOverlap(wordsA, wordsB);
+    if ((overlap.similarity >= 30 || overlap.keywords.length >= 3) && overlap.keywords.length >= 2) {
+      // Determine master vs candidate (prefer higher word count or shorter URL)
+      const aIsMaster = pageA.wordCount >= pageB.wordCount;
+      const master = aIsMaster ? pageA : pageB;
+      const candidate = aIsMaster ? pageB : pageA;
+
+      const topic = overlap.keywords.slice(0, 4).join(' ');
+      const simScore = `${overlap.similarity}%`;
+      const rec_ar = `يوصى باعتماد "${master.title}" كمقال رئيسي، ودمج محتوى "${candidate.title}" معه أو عمل تحويل 301 لمنع تنافس المقالين في نتائج البحث.`;
+      const rec_en = `Consolidate "${candidate.title}" into master guide "${master.title}" or configure a 301 redirect to eliminate SERP keyword competition.`;
+      const sig_ar = `تطابق بنسبة ${simScore} في الكلمات الدلالية: (${overlap.keywords.join('، ')})`;
+      const sig_en = `${simScore} overlap in keywords: (${overlap.keywords.join(', ')})`;
+
+      cannibalizationClusters.push({
+        topic,
+        similarity: overlap.similarity,
+        similarityScore: simScore,
+        masterUrl: master.url,
+        masterTitle: master.title,
+        candidateUrl: candidate.url,
+        candidateTitle: candidate.title,
+        conflictingKeywords: overlap.keywords,
+        signals: isAr ? sig_ar : sig_en,
+        signals_ar: sig_ar,
+        signals_en: sig_en,
+        recommendation: isAr ? rec_ar : rec_en,
+        recommendation_ar: rec_ar,
+        recommendation_en: rec_en,
+      });
+
+      // Add to issues list as warning
+      allIssues.push({
+        id: `iss-cannibal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        fingerprint: `fp-cannibal-${candidate.url}-${master.url}`,
+        url: candidate.url,
+        checkId: 'content_cannibalization',
+        title: isAr
+          ? `تنافس كلمات دلالية مع (${master.title}) - نسبة التطابق ${simScore}`
+          : `Keyword Cannibalization conflict with (${master.title}) - ${simScore} overlap`,
+        title_ar: `تنافس كلمات دلالية مع (${master.title}) - نسبة التطابق ${simScore}`,
+        title_en: `Keyword Cannibalization conflict with (${master.title}) - ${simScore} overlap`,
+        severity: 'warning',
+        confidence: 'high',
+        firstSeen: new Date().toISOString(),
+        lastSeen: new Date().toISOString(),
+        daysOpen: 0,
+        isBaseline: true,
+        status: 'persisting',
+        details: isAr ? rec_ar : rec_en,
+        details_ar: rec_ar,
+        details_en: rec_en,
+        suggestion: { master_url: master.url, candidate_url: candidate.url, similarity: overlap.similarity },
+      });
     }
   }
 

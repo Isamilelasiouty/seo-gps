@@ -585,7 +585,6 @@ export const AppContent: React.FC = () => {
   };
 
   const getProjectPages = () => {
-    const isAr = (localStorage.getItem('seo_gps_locale') as any) !== 'en';
     if (activeProject?.id) {
       const saved = localStorage.getItem(`seo_gps_pages_${activeProject.id}`);
       if (saved) {
@@ -596,14 +595,6 @@ export const AppContent: React.FC = () => {
           }
         } catch (e) {}
       }
-      if (!activeProject.last_run_at) {
-        return [];
-      }
-      const domainPages = getDomainAuditResult(activeProject.domain, activeProject.root_url || `https://${activeProject.domain}/`, isAr).pages;
-      try {
-        localStorage.setItem(`seo_gps_pages_${activeProject.id}`, JSON.stringify(domainPages));
-      } catch (e) {}
-      return domainPages;
     }
     const quickSaved = localStorage.getItem('seo_gps_pages_quick');
     if (quickSaved) {
