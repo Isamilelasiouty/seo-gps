@@ -1,5 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Polyfill minimal WebSocket in Node.js environments (e.g. Vite build on Node <= 20)
+if (typeof window === 'undefined' && typeof (globalThis as any).WebSocket === 'undefined') {
+  (globalThis as any).WebSocket = class MockWebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readonly readyState = 3;
+    constructor() {}
+    close() {}
+    send() {}
+    addEventListener() {}
+    removeEventListener() {}
+  };
+}
+
 const getEnvVar = (key: string, fallback: string): string => {
   try {
     const meta = import.meta as any;
