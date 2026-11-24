@@ -28,7 +28,10 @@ from urllib.parse import urljoin, urlparse, unquote, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
-import defusedxml.ElementTree as defused_ET
+try:
+    import defusedxml.ElementTree as defused_ET
+except ImportError:
+    import xml.etree.ElementTree as defused_ET
 
 from engine.models import PageSnapshot, LinkItem, AssetItem, HreflangEntry, RedirectHop
 from engine.parser import extract_dom_signals
